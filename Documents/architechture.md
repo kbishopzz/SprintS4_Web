@@ -33,7 +33,7 @@
 
 ### Infrastructure
 
-- MySQL (RDS or EC2)
-- Spring Boot API (Docker → EC2/ECS)
-- React UI (S3 + CloudFront or EC2)
+- Google SQL (MySQL)
+- Spring Boot API (Docker → Google Cloud Run)
+- React UI (Google Cloud Run)
 - Environment variables for API URL and auth configuration

@@ -56,9 +56,9 @@
 
 ## Day 9 — Deployment
 
-- Deploy MySQL (RDS or EC2)
-- Deploy API (EC2/ECS/Elastic Beanstalk)
-- Deploy UI (S3 + CloudFront or EC2)
+- Deploy Google SQL
+- Deploy API (Google Cloud Run)
+- Deploy UI (Google Cloud Run)
 - Configure environment variables and test end-to-end
 
 ## Day 10 — Demo & Documentation

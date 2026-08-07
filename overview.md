@@ -6,7 +6,7 @@ This project is a full-stack aviation arrivals and departures application built 
 
 - Backend: Spring Boot (REST API, MySQL, authentication, Docker, CI)
 - Frontend: React (public arrivals/departures UI + admin CRUD + login)
-- Infrastructure: AWS (API, DB, UI deployed)
+- Infrastructure: Google Cloud (Google SQL DB, Google Cloud Run API & UI deployed)
 
 The system allows users to:
 
