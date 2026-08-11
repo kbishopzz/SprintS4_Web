@@ -17,29 +17,33 @@ import AirlinesAdmin from './pages/admin/AirlinesAdmin';
 import GatesAdmin from './pages/admin/GatesAdmin';
 import NotFoundPage from './pages/NotFoundPage';
 
+import { AuthProvider } from './context/AuthContext';
+
 const renderHtmlWithRouter = (initialRoute = '/') => {
   return renderToString(
-    <MemoryRouter initialEntries={[initialRoute]}>
-      <Navbar />
-      <main>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/booking" element={<BookingPage />} />
-          <Route path="/checkout" element={<CheckoutPage />} />
-          <Route path="/my-bookings" element={<TravellerDashboard />} />
-          <Route path="/check-in" element={<CheckInPage />} />
-          <Route path="/baggage" element={<BaggagePage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/flights" element={<FlightsAdmin />} />
-          <Route path="/admin/aircraft" element={<AircraftAdmin />} />
-          <Route path="/admin/airlines" element={<AirlinesAdmin />} />
-          <Route path="/admin/gates" element={<GatesAdmin />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </main>
-      <Footer />
-    </MemoryRouter>
+    <AuthProvider>
+      <MemoryRouter initialEntries={[initialRoute]}>
+        <Navbar />
+        <main>
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/booking" element={<BookingPage />} />
+            <Route path="/checkout" element={<CheckoutPage />} />
+            <Route path="/my-bookings" element={<TravellerDashboard />} />
+            <Route path="/check-in" element={<CheckInPage />} />
+            <Route path="/baggage" element={<BaggagePage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/flights" element={<FlightsAdmin />} />
+            <Route path="/admin/aircraft" element={<AircraftAdmin />} />
+            <Route path="/admin/airlines" element={<AirlinesAdmin />} />
+            <Route path="/admin/gates" element={<GatesAdmin />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </main>
+        <Footer />
+      </MemoryRouter>
+    </AuthProvider>
   );
 };
 
