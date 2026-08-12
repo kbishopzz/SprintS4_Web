@@ -60,4 +60,90 @@ apiClient.interceptors.response.use(
   }
 );
 
+/* ============================================================
+   Domain-Specific API Methods
+   ============================================================ */
+
+// ---------- Airports ----------
+export const airportApi = {
+  getAll:      ()         => apiClient.get('/api/airports'),
+  getById:     (id)       => apiClient.get(`/api/airports/${id}`),
+  create:      (data)     => apiClient.post('/api/airports', data),
+  update:      (id, data) => apiClient.put(`/api/airports/${id}`, data),
+  delete:      (id)       => apiClient.delete(`/api/airports/${id}`),
+  getGates:    (id)       => apiClient.get(`/api/airports/${id}/gates`),
+};
+
+// ---------- Cities ----------
+export const cityApi = {
+  getAll:      (page=0, size=100) => apiClient.get(`/api/cities?page=${page}&size=${size}`),
+  getById:     (id)       => apiClient.get(`/api/cities/${id}`),
+  create:      (data)     => apiClient.post('/api/cities', data),
+  update:      (id, data) => apiClient.put(`/api/cities/${id}`, data),
+  delete:      (id)       => apiClient.delete(`/api/cities/${id}`),
+  getAirports: (id)       => apiClient.get(`/api/cities/${id}/airports`),
+};
+
+// ---------- Planes ----------
+export const planeApi = {
+  getAll:      ()         => apiClient.get('/api/planes'),
+  getById:     (id)       => apiClient.get(`/api/planes/${id}`),
+  create:      (data)     => apiClient.post('/api/planes', data),
+  update:      (id, data) => apiClient.put(`/api/planes/${id}`, data),
+  delete:      (id)       => apiClient.delete(`/api/planes/${id}`),
+  getAirports: (id)       => apiClient.get(`/api/planes/${id}/airports`),
+};
+
+// ---------- Passengers ----------
+export const passengerApi = {
+  getAll:      (page=0, size=100) => apiClient.get(`/api/passengers?page=${page}&size=${size}`),
+  getById:     (id)       => apiClient.get(`/api/passengers/${id}`),
+  create:      (data)     => apiClient.post('/api/passengers', data),
+  update:      (id, data) => apiClient.put(`/api/passengers/${id}`, data),
+  delete:      (id)       => apiClient.delete(`/api/passengers/${id}`),
+  getPlanes:   (id)       => apiClient.get(`/api/passengers/${id}/planes`),
+  getAirports: (id)       => apiClient.get(`/api/passengers/${id}/airports`),
+};
+
+// ---------- Gates ----------
+export const gateApi = {
+  getAll:        ()         => apiClient.get('/api/gates'),
+  getById:       (id)       => apiClient.get(`/api/gates/${id}`),
+  getByAirport:  (airportId)=> apiClient.get(`/api/gates/airport/${airportId}`),
+  create:        (data)     => apiClient.post('/api/gates', data),
+  update:        (id, data) => apiClient.put(`/api/gates/${id}`, data),
+  delete:        (id)       => apiClient.delete(`/api/gates/${id}`),
+};
+
+// ---------- Airlines ----------
+export const airlineApi = {
+  getAll:      ()         => apiClient.get('/api/airlines'),
+  getById:     (id)       => apiClient.get(`/api/airlines/${id}`),
+  getByCode:   (code)     => apiClient.get(`/api/airlines/code/${code}`),
+  create:      (data)     => apiClient.post('/api/airlines', data),
+  update:      (id, data) => apiClient.put(`/api/airlines/${id}`, data),
+  delete:      (id)       => apiClient.delete(`/api/airlines/${id}`),
+};
+
+// ---------- Bookings ----------
+export const bookingApi = {
+  getAll:         ()         => apiClient.get('/api/bookings'),
+  getById:        (id)       => apiClient.get(`/api/bookings/${id}`),
+  getByReference: (ref)      => apiClient.get(`/api/bookings/reference/${ref}`),
+  getByPassenger: (id)       => apiClient.get(`/api/bookings/passenger/${id}`),
+  create:         (data)     => apiClient.post('/api/bookings', data),
+  update:         (id, data) => apiClient.put(`/api/bookings/${id}`, data),
+  checkIn:        (id)       => apiClient.put(`/api/bookings/${id}/checkin`),
+  delete:         (id)       => apiClient.delete(`/api/bookings/${id}`),
+};
+
+// ---------- Users ----------
+export const userApi = {
+  getAll:        ()          => apiClient.get('/users'),
+  getById:       (id)        => apiClient.get(`/users/${id}`),
+  getByUsername:  (username)  => apiClient.get(`/users/username/${username}`),
+  create:        (data)      => apiClient.post('/users', data),
+  delete:        (id)        => apiClient.delete(`/users/${id}`),
+};
+
 export default apiClient;
