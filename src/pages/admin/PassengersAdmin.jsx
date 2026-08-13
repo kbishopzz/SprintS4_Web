@@ -1,7 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
-import { passengerApi } from '../../api/ApiClient';
+import { passengerApi, airportApi, planeApi, airlineApi, bookingApi } from '../../api/ApiClient';
 
 const emptyPassenger = { firstName: '', lastName: '', phoneNumber: '', email: '', passportNumber: '' };
+
+const emptyBookingForm = {
+  passengerId: '',
+  flightNumber: '',
+  airlineId: '',
+  planeId: '',
+  originAirportId: '',
+  destinationAirportId: '',
+  gateId: '',
+  departureTime: '',
+  arrivalTime: '',
+  seatNumber: '',
+  baggageCount: 0,
+  status: 'BOOKED',
+};
 
 export default function PassengersAdmin() {
   const [passengers, setPassengers]   = useState([]);
@@ -18,22 +33,42 @@ export default function PassengersAdmin() {
   const [lookupResult, setLookupResult] = useState(null);
   const [lookupError, setLookupError]   = useState(null);
 
-  // Form / Modal state
+  // Reference data for dropdowns
+  const [airports, setAirports]       = useState([]);
+  const [planes, setPlanes]           = useState([]);
+  const [airlines, setAirlines]       = useState([]);
+  const [availableGates, setAvailableGates] = useState([]);
+
+  // Passenger Create / Edit Modal state
   const [modalOpen, setModalOpen]     = useState(false);
   const [editingPassenger, setEditingPassenger] = useState(null);
   const [form, setForm]               = useState(emptyPassenger);
   const [formError, setFormError]     = useState('');
   const [formLoading, setFormLoading] = useState(false);
 
-  // Delete state
+  // Delete Passenger state
   const [deleteTarget, setDeleteTarget]   = useState(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  // Inspection Drawer/Modal state
+  // Inspection Drawer & Bookings state
   const [inspectPassenger, setInspectPassenger] = useState(null);
+  const [passengerBookings, setPassengerBookings] = useState([]);
   const [passengerPlanes, setPassengerPlanes]   = useState([]);
   const [passengerAirports, setPassengerAirports] = useState([]);
   const [inspectLoading, setInspectLoading]     = useState(false);
+
+  // Staff Flight Booking Modal state
+  const [bookModalOpen, setBookModalOpen] = useState(false);
+  const [bookForm, setBookForm]           = useState(emptyBookingForm);
+  const [bookError, setBookError]         = useState('');
+  const [bookLoading, setBookLoading]     = useState(false);
+
+  // Edit Existing Booking Modal state (Baggage / Gate / Check-In Management)
+  const [editBooking, setEditBooking]     = useState(null);
+  const [editBookingForm, setEditBookingForm] = useState(null);
+  const [editBookingGates, setEditBookingGates] = useState([]);
+  const [editBookingError, setEditBookingError] = useState('');
+  const [editBookingLoading, setEditBookingLoading] = useState(false);
 
   // Fetch paginated passengers
   const fetchPassengers = useCallback(async () => {
@@ -60,8 +95,24 @@ export default function PassengersAdmin() {
     }
   }, [page, pageSize]);
 
+  // Fetch reference dropdown options (airports, planes, airlines)
   useEffect(() => {
     fetchPassengers();
+    async function loadReferenceData() {
+      try {
+        const [apRes, plRes, alRes] = await Promise.allSettled([
+          airportApi.getAll(),
+          planeApi.getAll(),
+          airlineApi.getAll(),
+        ]);
+        if (apRes.status === 'fulfilled' && Array.isArray(apRes.value.data)) setAirports(apRes.value.data);
+        if (plRes.status === 'fulfilled' && Array.isArray(plRes.value.data)) setPlanes(plRes.value.data);
+        if (alRes.status === 'fulfilled' && Array.isArray(alRes.value.data)) setAirlines(alRes.value.data);
+      } catch (err) {
+        console.error('[PassengersAdmin] Error loading reference data:', err);
+      }
+    }
+    loadReferenceData();
   }, [fetchPassengers]);
 
   // Lookup passenger by ID
@@ -78,18 +129,23 @@ export default function PassengersAdmin() {
     }
   };
 
-  // Inspect passenger planes & airports
+  // Inspect passenger bookings, planes & airports
   const handleInspect = async (passenger) => {
     setInspectPassenger(passenger);
     setInspectLoading(true);
+    setPassengerBookings([]);
     setPassengerPlanes([]);
     setPassengerAirports([]);
     try {
-      const [planesRes, airportsRes] = await Promise.allSettled([
+      const [bookingsRes, planesRes, airportsRes] = await Promise.allSettled([
+        bookingApi.getByPassenger(passenger.id),
         passengerApi.getPlanes(passenger.id),
         passengerApi.getAirports(passenger.id),
       ]);
 
+      if (bookingsRes.status === 'fulfilled' && Array.isArray(bookingsRes.value.data)) {
+        setPassengerBookings(bookingsRes.value.data);
+      }
       if (planesRes.status === 'fulfilled' && Array.isArray(planesRes.value.data)) {
         setPassengerPlanes(planesRes.value.data);
       }
@@ -100,6 +156,158 @@ export default function PassengersAdmin() {
       console.error('[PassengersAdmin] Inspect error:', err);
     } finally {
       setInspectLoading(false);
+    }
+  };
+
+  // Dynamically load gates when origin airport changes in Booking Form
+  const handleOriginAirportChange = async (airportId) => {
+    setBookForm((prev) => ({ ...prev, originAirportId: airportId, gateId: '' }));
+    setAvailableGates([]);
+    if (!airportId) return;
+    try {
+      const res = await airportApi.getGates(airportId);
+      if (Array.isArray(res.data)) {
+        setAvailableGates(res.data);
+      }
+    } catch (err) {
+      console.error('[PassengersAdmin] Error fetching gates for airport:', err);
+    }
+  };
+
+  // Open Book Flight Modal
+  const openBookModal = (passenger) => {
+    const defaultOrigin = airports[0]?.id ? String(airports[0].id) : '';
+    const defaultDest   = airports[1]?.id ? String(airports[1].id) : '';
+
+    setBookForm({
+      ...emptyBookingForm,
+      passengerId: passenger ? String(passenger.id) : '',
+      originAirportId: defaultOrigin,
+      destinationAirportId: defaultDest,
+      flightNumber: 'AC' + (100 + Math.floor(Math.random() * 800)),
+      departureTime: new Date(Date.now() + 86400000).toISOString().slice(0, 10) + ' 09:00',
+      arrivalTime:   new Date(Date.now() + 86400000).toISOString().slice(0, 10) + ' 13:30',
+      seatNumber: '14' + String.fromCharCode(65 + Math.floor(Math.random() * 6)),
+      baggageCount: 1,
+    });
+    setBookError('');
+    setBookModalOpen(true);
+
+    if (defaultOrigin) {
+      handleOriginAirportChange(defaultOrigin);
+    }
+  };
+
+  const closeBookModal = () => {
+    setBookModalOpen(false);
+    setBookForm(emptyBookingForm);
+    setBookError('');
+    setAvailableGates([]);
+  };
+
+  // Submit Flight Booking
+  const handleBookSubmit = async (e) => {
+    e.preventDefault();
+    if (!bookForm.passengerId || !bookForm.flightNumber || !bookForm.originAirportId || !bookForm.destinationAirportId) {
+      setBookError('Passenger, Flight Number, Origin Airport, and Destination Airport are required.');
+      return;
+    }
+    setBookLoading(true);
+    setBookError('');
+
+    try {
+      const payload = {
+        flightNumber: bookForm.flightNumber.toUpperCase(),
+        passenger: { id: Number(bookForm.passengerId) },
+        originAirport: { id: Number(bookForm.originAirportId) },
+        destinationAirport: { id: Number(bookForm.destinationAirportId) },
+        ...(bookForm.airlineId ? { airline: { id: Number(bookForm.airlineId) } } : {}),
+        ...(bookForm.planeId ? { plane: { id: Number(bookForm.planeId) } } : {}),
+        ...(bookForm.gateId ? { gate: { id: Number(bookForm.gateId) } } : {}),
+        departureTime: bookForm.departureTime,
+        arrivalTime: bookForm.arrivalTime,
+        seatNumber: bookForm.seatNumber.toUpperCase(),
+        baggageCount: Number(bookForm.baggageCount || 0),
+        status: bookForm.status,
+      };
+
+      await bookingApi.create(payload);
+      closeBookModal();
+      if (inspectPassenger) {
+        handleInspect(inspectPassenger);
+      }
+      fetchPassengers();
+    } catch (err) {
+      setBookError(err?.response?.data?.message || err?.message || 'Booking failed.');
+    } finally {
+      setBookLoading(false);
+    }
+  };
+
+  // Perform Staff Assisted Check-In on behalf of passenger
+  const handleStaffCheckIn = async (bookingId) => {
+    try {
+      await bookingApi.checkIn(bookingId);
+      if (inspectPassenger) {
+        handleInspect(inspectPassenger);
+      }
+    } catch (err) {
+      console.error('[PassengersAdmin] Staff check-in error:', err);
+    }
+  };
+
+  // Open Edit Booking Modal (Baggage / Gate / Seat / Status)
+  const openEditBooking = async (b) => {
+    setEditBooking(b);
+    const originId = b.originAirport?.id || '';
+    setEditBookingForm({
+      flightNumber: b.flightNumber || '',
+      gateId: b.gate?.id ? String(b.gate.id) : '',
+      seatNumber: b.seatNumber || '',
+      baggageCount: b.baggageCount || 0,
+      status: b.status || 'BOOKED',
+      departureTime: b.departureTime || '',
+      arrivalTime: b.arrivalTime || '',
+    });
+    setEditBookingError('');
+
+    if (originId) {
+      try {
+        const res = await airportApi.getGates(originId);
+        if (Array.isArray(res.data)) setEditBookingGates(res.data);
+      } catch (err) {
+        console.error('[PassengersAdmin] Error loading gates for edit booking:', err);
+      }
+    }
+  };
+
+  const handleEditBookingSubmit = async (e) => {
+    e.preventDefault();
+    if (!editBooking) return;
+    setEditBookingLoading(true);
+    setEditBookingError('');
+
+    try {
+      const payload = {
+        flightNumber: editBookingForm.flightNumber,
+        seatNumber: editBookingForm.seatNumber,
+        baggageCount: Number(editBookingForm.baggageCount),
+        status: editBookingForm.status,
+        departureTime: editBookingForm.departureTime,
+        arrivalTime: editBookingForm.arrivalTime,
+        ...(editBookingForm.gateId ? { gate: { id: Number(editBookingForm.gateId) } } : {}),
+      };
+
+      await bookingApi.update(editBooking.id, payload);
+      setEditBooking(null);
+      setEditBookingForm(null);
+      if (inspectPassenger) {
+        handleInspect(inspectPassenger);
+      }
+    } catch (err) {
+      setEditBookingError(err?.response?.data?.message || err?.message || 'Update failed.');
+    } finally {
+      setEditBookingLoading(false);
     }
   };
 
@@ -115,7 +323,7 @@ export default function PassengersAdmin() {
     );
   });
 
-  // Modal helpers
+  // Modal helpers for Passenger Create/Edit
   const openCreate = () => {
     setEditingPassenger(null);
     setForm(emptyPassenger);
@@ -192,9 +400,9 @@ export default function PassengersAdmin() {
       {/* Header */}
       <div className="page-header">
         <div className="page-header-text">
-          <h1>Manage Passengers</h1>
+          <h1>Manage Passengers &amp; Operations</h1>
           <p className="page-subtitle">
-            View, search, create, update, and inspect passenger profiles and flight history.
+            Book flights, assign terminal gates, manage checked baggage, and execute staff-assisted check-ins.
           </p>
         </div>
         <button className="btn btn-primary" onClick={openCreate} id="create-passenger-btn">
@@ -202,10 +410,10 @@ export default function PassengersAdmin() {
         </button>
       </div>
 
-      {/* ID Lookup Tool */}
+      {/* Fast Lookup Card */}
       <div className="glass-card" style={{ padding: '1.25rem 1.5rem' }}>
         <h3 style={{ fontSize: '0.95rem', margin: '0 0 0.75rem', color: 'var(--text-h)' }}>
-          🔍 Fast Passenger Lookup by ID (CLI Direct Lookup)
+          🔍 Fast Passenger Lookup &amp; Quick Actions
         </h3>
         <form onSubmit={handleLookup} style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <input
@@ -234,8 +442,11 @@ export default function PassengersAdmin() {
               </div>
             </div>
             <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-primary btn-sm" onClick={() => openBookModal(lookupResult)}>
+                🎟️ Book Flight
+              </button>
               <button className="btn btn-secondary btn-sm" onClick={() => handleInspect(lookupResult)}>
-                🔍 Inspect Planes & Airports
+                🔍 History &amp; Check-In
               </button>
               <button className="btn btn-secondary btn-sm" onClick={() => openEdit(lookupResult)}>
                 ✏️ Edit
@@ -294,7 +505,7 @@ export default function PassengersAdmin() {
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                  {['ID', 'First Name', 'Last Name', 'Phone Number', 'Email', 'Passport', 'Actions'].map((h) => (
+                  {['ID', 'Passenger Name', 'Phone Number', 'Email', 'Passport', 'Actions & Operations'].map((h) => (
                     <th key={h} style={{ padding: '0.85rem 1.25rem', textAlign: 'left', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
                       {h}
                     </th>
@@ -305,15 +516,19 @@ export default function PassengersAdmin() {
                 {filtered.map((p) => (
                   <tr key={p.id} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ padding: '0.9rem 1.25rem', fontWeight: 600 }}>#{p.id}</td>
-                    <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-h)' }}>{p.firstName}</td>
-                    <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-h)' }}>{p.lastName}</td>
+                    <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-h)', fontWeight: 600 }}>
+                      {p.firstName} {p.lastName}
+                    </td>
                     <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-muted)' }}>{p.phoneNumber || '—'}</td>
                     <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-muted)' }}>{p.email || '—'}</td>
                     <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-muted)' }}>{p.passportNumber || '—'}</td>
                     <td style={{ padding: '0.9rem 1.25rem' }}>
-                      <div style={{ display: 'flex', gap: '0.4rem' }}>
-                        <button className="btn btn-secondary btn-sm" onClick={() => handleInspect(p)} title="View Planes & Airports">
-                          ✈️ History
+                      <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button className="btn btn-primary btn-sm" onClick={() => openBookModal(p)} title="Book passenger onto a flight">
+                          🎟️ Book Flight
+                        </button>
+                        <button className="btn btn-secondary btn-sm" onClick={() => handleInspect(p)} title="Inspect bookings & assisted check-in">
+                          ✈️ Operations
                         </button>
                         <button className="btn btn-secondary btn-sm" onClick={() => openEdit(p)}>
                           ✏️ Edit
@@ -349,108 +564,302 @@ export default function PassengersAdmin() {
         </div>
       </div>
 
-      {/* CREATE / EDIT MODAL */}
-      {modalOpen && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: '480px', padding: '2rem' }}>
+      {/* STAFF FLIGHT BOOKING MODAL */}
+      {bookModalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) closeBookModal(); }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '560px', padding: '2rem', maxHeight: '90vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <h2 style={{ fontSize: '1.15rem', margin: 0 }}>
-                {editingPassenger ? `Edit Passenger #${editingPassenger.id}` : 'Add New Passenger'}
+                🎟️ Book Passenger onto Flight
               </h2>
-              <button onClick={closeModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              <button onClick={closeBookModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
             </div>
 
-            {formError && <div className="badge-status cancelled" style={{ padding: '0.5rem', marginBottom: '1rem' }}>⚠️ {formError}</div>}
+            {bookError && <div className="badge-status cancelled" style={{ padding: '0.5rem', marginBottom: '1rem' }}>⚠️ {bookError}</div>}
 
-            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <form onSubmit={handleBookSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Passenger *</label>
+                <select
+                  className="input-control"
+                  value={bookForm.passengerId}
+                  onChange={(e) => setBookForm({ ...bookForm, passengerId: e.target.value })}
+                  required
+                >
+                  <option value="">-- Select Passenger --</option>
+                  {passengers.map((p) => (
+                    <option key={p.id} value={p.id}>#{p.id} - {p.firstName} {p.lastName} ({p.email})</option>
+                  ))}
+                </select>
+              </div>
+
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
-                  <label className="form-label">First Name *</label>
-                  <input name="firstName" className="input-control" value={form.firstName} onChange={handleFormChange} required />
+                  <label className="form-label">Flight Number *</label>
+                  <input
+                    className="input-control"
+                    value={bookForm.flightNumber}
+                    onChange={(e) => setBookForm({ ...bookForm, flightNumber: e.target.value })}
+                    placeholder="e.g. AC108"
+                    required
+                  />
                 </div>
                 <div className="form-group">
-                  <label className="form-label">Last Name *</label>
-                  <input name="lastName" className="input-control" value={form.lastName} onChange={handleFormChange} required />
+                  <label className="form-label">Airline</label>
+                  <select
+                    className="input-control"
+                    value={bookForm.airlineId}
+                    onChange={(e) => setBookForm({ ...bookForm, airlineId: e.target.value })}
+                  >
+                    <option value="">-- Select Airline --</option>
+                    {airlines.map((al) => (
+                      <option key={al.id} value={al.id}>{al.name} ({al.code})</option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Phone Number</label>
-                <input name="phoneNumber" className="input-control" value={form.phoneNumber} onChange={handleFormChange} placeholder="e.g. 555-0192" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Origin Airport *</label>
+                  <select
+                    className="input-control"
+                    value={bookForm.originAirportId}
+                    onChange={(e) => handleOriginAirportChange(e.target.value)}
+                    required
+                  >
+                    <option value="">-- Select Origin --</option>
+                    {airports.map((ap) => (
+                      <option key={ap.id} value={ap.id}>{ap.name} ({ap.airportCode})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Destination Airport *</label>
+                  <select
+                    className="input-control"
+                    value={bookForm.destinationAirportId}
+                    onChange={(e) => setBookForm({ ...bookForm, destinationAirportId: e.target.value })}
+                    required
+                  >
+                    <option value="">-- Select Destination --</option>
+                    {airports.map((ap) => (
+                      <option key={ap.id} value={ap.id}>{ap.name} ({ap.airportCode})</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Email</label>
-                <input name="email" type="email" className="input-control" value={form.email} onChange={handleFormChange} placeholder="e.g. passenger@airport.com" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Assign Terminal Gate</label>
+                  <select
+                    className="input-control"
+                    value={bookForm.gateId}
+                    onChange={(e) => setBookForm({ ...bookForm, gateId: e.target.value })}
+                  >
+                    <option value="">-- Select Gate --</option>
+                    {availableGates.map((g) => (
+                      <option key={g.id} value={g.id}>Gate {g.gateNumber || g.gateCode} ({g.terminal || 'Main'})</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Aircraft / Plane</label>
+                  <select
+                    className="input-control"
+                    value={bookForm.planeId}
+                    onChange={(e) => setBookForm({ ...bookForm, planeId: e.target.value })}
+                  >
+                    <option value="">-- Select Aircraft --</option>
+                    {planes.map((pl) => (
+                      <option key={pl.id || pl.ID} value={pl.id || pl.ID}>{pl.type} ({pl.airlineName || 'N/A'})</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              <div className="form-group">
-                <label className="form-label">Passport Number</label>
-                <input name="passportNumber" className="input-control" value={form.passportNumber} onChange={handleFormChange} placeholder="e.g. PP1029384" />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Departure Time</label>
+                  <input
+                    className="input-control"
+                    value={bookForm.departureTime}
+                    onChange={(e) => setBookForm({ ...bookForm, departureTime: e.target.value })}
+                    placeholder="YYYY-MM-DD HH:mm"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Arrival Time</label>
+                  <input
+                    className="input-control"
+                    value={bookForm.arrivalTime}
+                    onChange={(e) => setBookForm({ ...bookForm, arrivalTime: e.target.value })}
+                    placeholder="YYYY-MM-DD HH:mm"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Seat Number</label>
+                  <input
+                    className="input-control"
+                    value={bookForm.seatNumber}
+                    onChange={(e) => setBookForm({ ...bookForm, seatNumber: e.target.value })}
+                    placeholder="e.g. 14A"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Checked Bags</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    className="input-control"
+                    value={bookForm.baggageCount}
+                    onChange={(e) => setBookForm({ ...bookForm, baggageCount: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Check-In Status</label>
+                  <select
+                    className="input-control"
+                    value={bookForm.status}
+                    onChange={(e) => setBookForm({ ...bookForm, status: e.target.value })}
+                  >
+                    <option value="BOOKED">BOOKED</option>
+                    <option value="CHECKED_IN">CHECKED_IN (Assisted)</option>
+                  </select>
+                </div>
               </div>
 
               <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={formLoading}>
-                  {formLoading ? '⏳ Saving...' : editingPassenger ? '💾 Save Changes' : '✅ Create Passenger'}
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={bookLoading}>
+                  {bookLoading ? '⏳ Processing...' : '🎟️ Confirm Flight Booking'}
                 </button>
-                <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={formLoading}>Cancel</button>
+                <button type="button" className="btn btn-secondary" onClick={closeBookModal} disabled={bookLoading}>Cancel</button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* INSPECT PLANES & AIRPORTS MODAL */}
+      {/* INSPECT OPERATIONS & ASSISTED CHECK-IN DRAWER */}
       {inspectPassenger && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1001, padding: '1rem' }}>
-          <div className="glass-card" style={{ width: '100%', maxWidth: '640px', padding: '2rem', maxHeight: '85vh', overflowY: 'auto' }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '780px', padding: '2rem', maxHeight: '85vh', overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-              <h2 style={{ fontSize: '1.15rem', margin: 0 }}>
-                ✈️ Travel History — {inspectPassenger.firstName} {inspectPassenger.lastName}
-              </h2>
-              <button onClick={() => setInspectPassenger(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              <div>
+                <h2 style={{ fontSize: '1.15rem', margin: 0 }}>
+                  ✈️ Flight Operations &amp; Check-In Control
+                </h2>
+                <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                  Passenger: <strong>{inspectPassenger.firstName} {inspectPassenger.lastName}</strong> (ID #{inspectPassenger.id})
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button className="btn btn-primary btn-sm" onClick={() => openBookModal(inspectPassenger)}>
+                  + Book New Flight
+                </button>
+                <button onClick={() => setInspectPassenger(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+              </div>
             </div>
 
             {inspectLoading ? (
-              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>⏳ Querying domain relationships...</div>
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>⏳ Loading passenger flight operations...</div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                {/* Planes for Passenger */}
+                {/* Bookings & Assisted Check-in Table */}
                 <div>
-                  <h4 style={{ margin: '0 0 0.5rem', color: 'var(--text-h)', fontSize: '0.95rem' }}>
-                    🛩️ Planes Flown / Booked ({passengerPlanes.length})
+                  <h4 style={{ margin: '0 0 0.75rem', color: 'var(--text-h)', fontSize: '0.95rem' }}>
+                    🎟️ Passenger Flight Bookings &amp; Staff Check-In ({passengerBookings.length})
                   </h4>
-                  {passengerPlanes.length === 0 ? (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No plane records associated with this passenger.</p>
+
+                  {passengerBookings.length === 0 ? (
+                    <div style={{ padding: '1.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', textAlign: 'center' }}>
+                      <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: '0 0 0.75rem' }}>No active bookings for this passenger.</p>
+                      <button className="btn btn-primary btn-sm" onClick={() => openBookModal(inspectPassenger)}>
+                        Book First Flight
+                      </button>
+                    </div>
                   ) : (
-                    <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', padding: '0.5rem' }}>
-                      {passengerPlanes.map((pl) => (
-                        <div key={pl.id || pl.ID} style={{ padding: '0.4rem 0.75rem', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}>
-                          <span><strong>{pl.type}</strong> ({pl.airlineName || 'N/A'})</span>
-                          <span style={{ color: 'var(--text-muted)' }}>Cap: {pl.numOfPassengers} seats</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+                      {passengerBookings.map((b) => (
+                        <div
+                          key={b.id}
+                          style={{
+                            padding: '1rem 1.25rem',
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid var(--border)',
+                            borderRadius: 'var(--radius-md)',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            gap: '0.5rem',
+                          }}
+                        >
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                              <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--text-h)' }}>
+                                {b.flightNumber}
+                              </span>
+                              <span style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                                Ref: <strong>{b.bookingReference}</strong>
+                              </span>
+                            </div>
+                            <span className={`badge-status ${b.status?.toLowerCase() === 'checked_in' ? 'on-time' : b.status?.toLowerCase() === 'completed' ? 'landed' : b.status?.toLowerCase() === 'cancelled' ? 'cancelled' : 'delayed'}`}>
+                              {b.status}
+                            </span>
+                          </div>
+
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '0.5rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                            <div>Route: <strong>{b.originAirport?.airportCode} ➔ {b.destinationAirport?.airportCode}</strong></div>
+                            <div>Gate: <strong>{b.gate?.gateNumber || b.gate?.gateCode || 'Unassigned'}</strong></div>
+                            <div>Seat: <strong>{b.seatNumber || 'Unassigned'}</strong></div>
+                            <div>Baggage: <strong>🎒 {b.baggageCount} bags</strong></div>
+                            <div>Departure: <strong>{b.departureTime}</strong></div>
+                            <div>Check-In Time: <strong>{b.checkInTime || 'Not checked in'}</strong></div>
+                          </div>
+
+                          {/* Operations Action Bar */}
+                          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem', justifyContent: 'flex-end' }}>
+                            {b.status !== 'CHECKED_IN' && b.status !== 'COMPLETED' && (
+                              <button className="btn btn-primary btn-sm" onClick={() => handleStaffCheckIn(b.id)} title="Staff Check-In on behalf of passenger">
+                                ⚡ Staff Check-In
+                              </button>
+                            )}
+                            <button className="btn btn-secondary btn-sm" onClick={() => openEditBooking(b)}>
+                              ✏️ Manage Gate / Baggage
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   )}
                 </div>
 
-                {/* Airports Used by Passenger */}
-                <div>
-                  <h4 style={{ margin: '0 0 0.5rem', color: 'var(--text-h)', fontSize: '0.95rem' }}>
-                    🌐 Airports Visited / Used ({passengerAirports.length})
-                  </h4>
-                  {passengerAirports.length === 0 ? (
-                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>No airport records associated with this passenger.</p>
-                  ) : (
-                    <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-sm)', padding: '0.5rem' }}>
-                      {passengerAirports.map((ap) => (
-                        <div key={ap.id} style={{ padding: '0.4rem 0.75rem', borderBottom: '1px solid var(--border)', fontSize: '0.85rem', display: 'flex', justifyContent: 'space-between' }}>
-                          <span><strong>{ap.name}</strong></span>
-                          <span className="badge-status on-time" style={{ fontSize: '0.75rem', padding: '0.1rem 0.5rem' }}>{ap.airportCode}</span>
+                {/* Planes & Airports History */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <h5 style={{ margin: '0 0 0.5rem', color: 'var(--text-h)' }}>🛩️ Aircraft History ({passengerPlanes.length})</h5>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      {passengerPlanes.map((pl) => (
+                        <div key={pl.id || pl.ID} style={{ padding: '0.35rem 0', borderBottom: '1px solid var(--border)' }}>
+                          {pl.type} ({pl.airlineName || 'N/A'})
                         </div>
                       ))}
                     </div>
-                  )}
+                  </div>
+                  <div>
+                    <h5 style={{ margin: '0 0 0.5rem', color: 'var(--text-h)' }}>🌐 Airports Visited ({passengerAirports.length})</h5>
+                    <div style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                      {passengerAirports.map((ap) => (
+                        <div key={ap.id} style={{ padding: '0.35rem 0', borderBottom: '1px solid var(--border)' }}>
+                          {ap.name} ({ap.airportCode})
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
@@ -462,9 +871,86 @@ export default function PassengersAdmin() {
         </div>
       )}
 
-      {/* DELETE CONFIRM MODAL */}
+      {/* MANAGE BOOKING / BAGGAGE / GATE MODAL */}
+      {editBooking && editBookingForm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1002, padding: '1rem' }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '480px', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1.15rem', margin: 0 }}>
+                ✏️ Manage Booking #{editBooking.id} ({editBooking.flightNumber})
+              </h2>
+              <button onClick={() => { setEditBooking(null); setEditBookingForm(null); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {editBookingError && <div className="badge-status cancelled" style={{ padding: '0.5rem', marginBottom: '1rem' }}>⚠️ {editBookingError}</div>}
+
+            <form onSubmit={handleEditBookingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div className="form-group">
+                <label className="form-label">Booking Status</label>
+                <select
+                  className="input-control"
+                  value={editBookingForm.status}
+                  onChange={(e) => setEditBookingForm({ ...editBookingForm, status: e.target.value })}
+                >
+                  <option value="BOOKED">BOOKED</option>
+                  <option value="CHECKED_IN">CHECKED_IN</option>
+                  <option value="COMPLETED">COMPLETED</option>
+                  <option value="CANCELLED">CANCELLED</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Assign Terminal Gate</label>
+                <select
+                  className="input-control"
+                  value={editBookingForm.gateId}
+                  onChange={(e) => setEditBookingForm({ ...editBookingForm, gateId: e.target.value })}
+                >
+                  <option value="">-- Select Gate --</option>
+                  {editBookingGates.map((g) => (
+                    <option key={g.id} value={g.id}>Gate {g.gateNumber || g.gateCode} ({g.terminal || 'Main'})</option>
+                  ))}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Seat Number</label>
+                  <input
+                    className="input-control"
+                    value={editBookingForm.seatNumber}
+                    onChange={(e) => setEditBookingForm({ ...editBookingForm, seatNumber: e.target.value })}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Checked Bags</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="10"
+                    className="input-control"
+                    value={editBookingForm.baggageCount}
+                    onChange={(e) => setEditBookingForm({ ...editBookingForm, baggageCount: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={editBookingLoading}>
+                  {editBookingLoading ? '⏳ Saving...' : '💾 Save Booking Changes'}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={() => { setEditBooking(null); setEditBookingForm(null); }} disabled={editBookingLoading}>
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE PASSENGER CONFIRM MODAL */}
       {deleteTarget && (
-        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1002, padding: '1rem' }}>
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1003, padding: '1rem' }}>
           <div className="glass-card" style={{ width: '100%', maxWidth: '380px', padding: '2rem', textAlign: 'center' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>⚠️</div>
             <h3 style={{ margin: '0 0 0.5rem' }}>Delete Passenger</h3>

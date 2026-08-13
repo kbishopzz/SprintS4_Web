@@ -141,7 +141,7 @@ describe('Admin Side Page Headers', () => {
 
   it('checks header on "/admin/passengers" (Manage Passengers)', () => {
     const html = renderAdminWithRouter('/admin/passengers');
-    expect(html).toContain('<h1>Manage Passengers</h1>');
+    expect(html).toContain('<h1>Manage Passengers &amp; Operations</h1>');
   });
 
   it('checks header on "/admin/aircraft" (Manage Aircraft)', () => {
