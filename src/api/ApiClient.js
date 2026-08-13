@@ -143,6 +143,7 @@ export const userApi = {
   getById:       (id)        => apiClient.get(`/users/${id}`),
   getByUsername:  (username)  => apiClient.get(`/users/username/${username}`),
   create:        (data)      => apiClient.post('/users', data),
+  update:        (id, data)  => apiClient.put(`/users/${id}`, data),
   delete:        (id)        => apiClient.delete(`/users/${id}`),
 };
 

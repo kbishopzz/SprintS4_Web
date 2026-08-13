@@ -52,6 +52,12 @@ export default function AdminLayout({ children }) {
             <span className="nav-icon">🌐</span>
             <span className="nav-text">Public Portal</span>
           </Link>
+
+          <div className="menu-group-title">System</div>
+          <Link to="/admin/users" className={isActive('/admin/users')}>
+            <span className="nav-icon">👥</span>
+            <span className="nav-text">User Management</span>
+          </Link>
         </nav>
 
         <div className="sidebar-user-footer">
@@ -60,7 +66,7 @@ export default function AdminLayout({ children }) {
             <div className="user-name">{user?.username || 'Admin Staff'}</div>
             <div className="user-role">Airline Operations</div>
           </div>
-          <button className="btn-icon" onClick={logout} title="Logout"
+          <button className="btn-icon" onClick={() => logout()} title="Logout"
                   style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>
             🚪
           </button>

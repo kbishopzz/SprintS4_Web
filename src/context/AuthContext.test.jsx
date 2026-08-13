@@ -50,7 +50,7 @@ describe('AuthContext & AuthProvider', () => {
 
   it('restores authenticated state from localStorage on initial render', () => {
     localStorage.setItem('token', 'stored-token-abc');
-    localStorage.setItem('auth_user', JSON.stringify({ username: 'admin' }));
+    localStorage.setItem('auth_user', JSON.stringify({ username: 'MReid', role: 'ADMIN' }));
 
     const html = renderToString(
       <AuthProvider>
@@ -59,8 +59,36 @@ describe('AuthContext & AuthProvider', () => {
     );
 
     expect(html).toContain('authenticated');
-    expect(html).toContain('admin');
+    expect(html).toContain('MReid');
     expect(html).toContain('stored-token-abc');
+  });
+
+  it('restores authenticated state for Kbishop from localStorage', () => {
+    localStorage.setItem('token', 'kbishop-token');
+    localStorage.setItem('auth_user', JSON.stringify({ username: 'Kbishop', role: 'ADMIN', provider: 'keycloak' }));
+
+    const html = renderToString(
+      <AuthProvider>
+        <ConsumerComponent />
+      </AuthProvider>
+    );
+
+    expect(html).toContain('authenticated');
+    expect(html).toContain('Kbishop');
+  });
+
+  it('restores authenticated state for CRubia from localStorage', () => {
+    localStorage.setItem('token', 'crubia-token');
+    localStorage.setItem('auth_user', JSON.stringify({ username: 'CRubia', role: 'ADMIN', provider: 'keycloak' }));
+
+    const html = renderToString(
+      <AuthProvider>
+        <ConsumerComponent />
+      </AuthProvider>
+    );
+
+    expect(html).toContain('authenticated');
+    expect(html).toContain('CRubia');
   });
 
   it('throws an error when useAuth is used outside an AuthProvider', () => {
