@@ -19,6 +19,10 @@ import FlightsAdmin from './pages/admin/FlightsAdmin';
 import AircraftAdmin from './pages/admin/AircraftAdmin';
 import AirlinesAdmin from './pages/admin/AirlinesAdmin';
 import GatesAdmin from './pages/admin/GatesAdmin';
+import PassengersAdmin from './pages/admin/PassengersAdmin';
+import AirportsAdmin from './pages/admin/AirportsAdmin';
+import CitiesAdmin from './pages/admin/CitiesAdmin';
+import DomainQueriesAdmin from './pages/admin/DomainQueriesAdmin';
 import UsersAdmin from './pages/admin/UsersAdmin';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -27,7 +31,7 @@ import NotFoundPage from './pages/NotFoundPage';
  */
 function ProtectedRoute({ children }) {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) return null; // or a spinner
+  if (loading) return null;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
   return children;
 }
@@ -41,13 +45,17 @@ function AppRoutes() {
       <ProtectedRoute>
         <AdminLayout>
           <Routes>
-            <Route path="/admin"          element={<AdminDashboard />} />
-            <Route path="/admin/flights"  element={<FlightsAdmin />} />
-            <Route path="/admin/aircraft" element={<AircraftAdmin />} />
-            <Route path="/admin/airlines" element={<AirlinesAdmin />} />
-            <Route path="/admin/gates"    element={<GatesAdmin />} />
-            <Route path="/admin/users"    element={<UsersAdmin />} />
-            <Route path="*"              element={<NotFoundPage />} />
+            <Route path="/admin"             element={<AdminDashboard />} />
+            <Route path="/admin/flights"     element={<FlightsAdmin />} />
+            <Route path="/admin/passengers"  element={<PassengersAdmin />} />
+            <Route path="/admin/aircraft"    element={<AircraftAdmin />} />
+            <Route path="/admin/airports"    element={<AirportsAdmin />} />
+            <Route path="/admin/cities"      element={<CitiesAdmin />} />
+            <Route path="/admin/airlines"    element={<AirlinesAdmin />} />
+            <Route path="/admin/gates"       element={<GatesAdmin />} />
+            <Route path="/admin/queries"     element={<DomainQueriesAdmin />} />
+            <Route path="/admin/users"       element={<UsersAdmin />} />
+            <Route path="*"                 element={<NotFoundPage />} />
           </Routes>
         </AdminLayout>
       </ProtectedRoute>

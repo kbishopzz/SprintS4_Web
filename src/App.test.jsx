@@ -10,11 +10,16 @@ import TravellerDashboard from './pages/public/TravellerDashboard';
 import CheckInPage from './pages/public/CheckInPage';
 import BaggagePage from './pages/public/BaggagePage';
 import LoginPage from './pages/LoginPage';
+
 import AdminDashboard from './pages/admin/AdminDashboard';
 import FlightsAdmin from './pages/admin/FlightsAdmin';
 import AircraftAdmin from './pages/admin/AircraftAdmin';
 import AirlinesAdmin from './pages/admin/AirlinesAdmin';
 import GatesAdmin from './pages/admin/GatesAdmin';
+import PassengersAdmin from './pages/admin/PassengersAdmin';
+import AirportsAdmin from './pages/admin/AirportsAdmin';
+import CitiesAdmin from './pages/admin/CitiesAdmin';
+import DomainQueriesAdmin from './pages/admin/DomainQueriesAdmin';
 import UsersAdmin from './pages/admin/UsersAdmin';
 import NotFoundPage from './pages/NotFoundPage';
 
@@ -62,13 +67,17 @@ const renderAdminWithRouter = (initialRoute = '/admin') => {
       <MemoryRouter initialEntries={[initialRoute]}>
         <main>
           <Routes>
-            <Route path="/admin"          element={<AdminDashboard />} />
-            <Route path="/admin/flights"  element={<FlightsAdmin />} />
-            <Route path="/admin/aircraft" element={<AircraftAdmin />} />
-            <Route path="/admin/airlines" element={<AirlinesAdmin />} />
-            <Route path="/admin/gates"    element={<GatesAdmin />} />
-            <Route path="/admin/users"    element={<UsersAdmin />} />
-            <Route path="*"              element={<NotFoundPage />} />
+            <Route path="/admin"             element={<AdminDashboard />} />
+            <Route path="/admin/flights"     element={<FlightsAdmin />} />
+            <Route path="/admin/passengers"  element={<PassengersAdmin />} />
+            <Route path="/admin/aircraft"    element={<AircraftAdmin />} />
+            <Route path="/admin/airports"    element={<AirportsAdmin />} />
+            <Route path="/admin/cities"      element={<CitiesAdmin />} />
+            <Route path="/admin/airlines"    element={<AirlinesAdmin />} />
+            <Route path="/admin/gates"       element={<GatesAdmin />} />
+            <Route path="/admin/queries"     element={<DomainQueriesAdmin />} />
+            <Route path="/admin/users"       element={<UsersAdmin />} />
+            <Route path="*"                 element={<NotFoundPage />} />
           </Routes>
         </main>
       </MemoryRouter>
@@ -130,9 +139,24 @@ describe('Admin Side Page Headers', () => {
     expect(html).toContain('<h1>Manage Flights</h1>');
   });
 
+  it('checks header on "/admin/passengers" (Manage Passengers)', () => {
+    const html = renderAdminWithRouter('/admin/passengers');
+    expect(html).toContain('<h1>Manage Passengers</h1>');
+  });
+
   it('checks header on "/admin/aircraft" (Manage Aircraft)', () => {
     const html = renderAdminWithRouter('/admin/aircraft');
     expect(html).toContain('<h1>Manage Aircraft</h1>');
+  });
+
+  it('checks header on "/admin/airports" (Manage Airports)', () => {
+    const html = renderAdminWithRouter('/admin/airports');
+    expect(html).toContain('<h1>Manage Airports</h1>');
+  });
+
+  it('checks header on "/admin/cities" (Manage Cities)', () => {
+    const html = renderAdminWithRouter('/admin/cities');
+    expect(html).toContain('<h1>Manage Cities</h1>');
   });
 
   it('checks header on "/admin/airlines" (Manage Airlines)', () => {
@@ -143,6 +167,11 @@ describe('Admin Side Page Headers', () => {
   it('checks header on "/admin/gates" (Manage Gates)', () => {
     const html = renderAdminWithRouter('/admin/gates');
     expect(html).toContain('<h1>Manage Gates</h1>');
+  });
+
+  it('checks header on "/admin/queries" (Sprint Domain Queries Hub)', () => {
+    const html = renderAdminWithRouter('/admin/queries');
+    expect(html).toContain('<h1>Sprint Domain Queries Hub</h1>');
   });
 
   it('checks header on "/admin/users" (User Management)', () => {

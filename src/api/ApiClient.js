@@ -61,7 +61,7 @@ apiClient.interceptors.response.use(
 );
 
 /* ============================================================
-   Domain-Specific API Methods
+   Domain-Specific API Methods (Synchronised with Backend & CLI)
    ============================================================ */
 
 // ---------- Airports ----------
@@ -76,7 +76,8 @@ export const airportApi = {
 
 // ---------- Cities ----------
 export const cityApi = {
-  getAll:      (page=0, size=100) => apiClient.get(`/api/cities?page=${page}&size=${size}`),
+  getAll:      (page=0, size=20, sort='') =>
+    apiClient.get(`/api/cities?page=${page}&size=${size}${sort ? `&sort=${encodeURIComponent(sort)}` : ''}`),
   getById:     (id)       => apiClient.get(`/api/cities/${id}`),
   create:      (data)     => apiClient.post('/api/cities', data),
   update:      (id, data) => apiClient.put(`/api/cities/${id}`, data),
@@ -96,7 +97,8 @@ export const planeApi = {
 
 // ---------- Passengers ----------
 export const passengerApi = {
-  getAll:      (page=0, size=100) => apiClient.get(`/api/passengers?page=${page}&size=${size}`),
+  getAll:      (page=0, size=20, sort='') =>
+    apiClient.get(`/api/passengers?page=${page}&size=${size}${sort ? `&sort=${encodeURIComponent(sort)}` : ''}`),
   getById:     (id)       => apiClient.get(`/api/passengers/${id}`),
   create:      (data)     => apiClient.post('/api/passengers', data),
   update:      (id, data) => apiClient.put(`/api/passengers/${id}`, data),
