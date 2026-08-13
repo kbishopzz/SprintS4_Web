@@ -1,5 +1,6 @@
-import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { useAuth } from './context/AuthContext';
 import AdminLayout from './components/AdminLayout';
 import PublicLayout from './components/PublicLayout';
 
@@ -18,7 +19,18 @@ import FlightsAdmin from './pages/admin/FlightsAdmin';
 import AircraftAdmin from './pages/admin/AircraftAdmin';
 import AirlinesAdmin from './pages/admin/AirlinesAdmin';
 import GatesAdmin from './pages/admin/GatesAdmin';
+import UsersAdmin from './pages/admin/UsersAdmin';
 import NotFoundPage from './pages/NotFoundPage';
+
+/**
+ * ProtectedRoute — redirects unauthenticated visitors to /login.
+ */
+function ProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return null; // or a spinner
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return children;
+}
 
 function AppRoutes() {
   const location = useLocation();
@@ -26,30 +38,33 @@ function AppRoutes() {
 
   if (isAdminRoute) {
     return (
-      <AdminLayout>
-        <Routes>
-          <Route path="/admin" element={<AdminDashboard />} />
-          <Route path="/admin/flights" element={<FlightsAdmin />} />
-          <Route path="/admin/aircraft" element={<AircraftAdmin />} />
-          <Route path="/admin/airlines" element={<AirlinesAdmin />} />
-          <Route path="/admin/gates" element={<GatesAdmin />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
-      </AdminLayout>
+      <ProtectedRoute>
+        <AdminLayout>
+          <Routes>
+            <Route path="/admin"          element={<AdminDashboard />} />
+            <Route path="/admin/flights"  element={<FlightsAdmin />} />
+            <Route path="/admin/aircraft" element={<AircraftAdmin />} />
+            <Route path="/admin/airlines" element={<AirlinesAdmin />} />
+            <Route path="/admin/gates"    element={<GatesAdmin />} />
+            <Route path="/admin/users"    element={<UsersAdmin />} />
+            <Route path="*"              element={<NotFoundPage />} />
+          </Routes>
+        </AdminLayout>
+      </ProtectedRoute>
     );
   }
 
   return (
     <PublicLayout>
       <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route path="/booking" element={<BookingPage />} />
-        <Route path="/checkout" element={<CheckoutPage />} />
+        <Route path="/"           element={<HomePage />} />
+        <Route path="/booking"    element={<BookingPage />} />
+        <Route path="/checkout"   element={<CheckoutPage />} />
         <Route path="/my-bookings" element={<TravellerDashboard />} />
-        <Route path="/check-in" element={<CheckInPage />} />
-        <Route path="/baggage" element={<BaggagePage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+        <Route path="/check-in"   element={<CheckInPage />} />
+        <Route path="/baggage"    element={<BaggagePage />} />
+        <Route path="/login"      element={<LoginPage />} />
+        <Route path="*"           element={<NotFoundPage />} />
       </Routes>
     </PublicLayout>
   );
