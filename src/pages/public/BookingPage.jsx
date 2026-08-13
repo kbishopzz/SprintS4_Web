@@ -14,18 +14,27 @@ export default function BookingPage() {
     { id: 'PD301', airline: 'Porter Airlines', depart: '17:00', arrive: '20:10', duration: '4h 10m', stops: '1 Stop (YHZ)', price: 259, seats: 12 },
   ];
 
+  const getPriceColor = (price) => {
+    if (price < 280) return 'var(--sky-green)';
+    if (price < 330) return 'var(--sky-blue)';
+    return 'var(--sky-purple)';
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="page-header-text">
           <h1>Book a Flight</h1>
-          <p className="page-subtitle">Flight search, selection, and booking template.</p>
+          <p className="page-subtitle">Search available routes, compare prices, and book your next adventure.</p>
         </div>
       </div>
 
-      {/* Flight Search Glass Card */}
-      <div className="glass-card">
-        <h3 style={{ marginBottom: '1.25rem' }}>🔍 Search Available Routes</h3>
+      {/* Flight Search Card */}
+      <div className="glass-card" style={{ borderTop: '4px solid var(--sky-blue)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+          <div className="metric-icon blue" style={{ width: '36px', height: '36px', fontSize: '1rem' }}>🔍</div>
+          <h3 style={{ margin: 0, color: 'var(--text-h)' }}>Search Available Routes</h3>
+        </div>
         <form onSubmit={(e) => e.preventDefault()} className="form-grid">
           <div className="form-group">
             <label className="form-label">Departure Airport</label>
@@ -75,17 +84,26 @@ export default function BookingPage() {
       {/* Results Section */}
       <div>
         <h3 style={{ marginBottom: '1rem', color: 'var(--text-h)' }}>
-          Available Flights: {fromCity} ➔ {toCity}
+          ✈️ Available Flights: {fromCity} ➔ {toCity}
         </h3>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           {availableFlights.map((flight) => (
-            <div key={flight.id} className="glass-card" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+            <div key={flight.id} className="glass-card" style={{
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              flexWrap: 'wrap', gap: '1rem',
+              borderLeft: `4px solid ${getPriceColor(flight.price)}`,
+              transition: 'all 0.3s var(--ease)'
+            }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
-                <div className="brand-icon" style={{ width: '48px', height: '48px', fontSize: '1.5rem' }}>✈️</div>
+                <div style={{
+                  width: '52px', height: '52px', borderRadius: 'var(--radius-md)',
+                  background: 'linear-gradient(135deg, var(--sky-blue-light), var(--sky-purple-light))',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.5rem'
+                }}>✈️</div>
                 <div>
                   <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--text-h)' }}>{flight.airline} ({flight.id})</div>
-                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Duration: {flight.duration} &bull; {flight.stops}</div>
+                  <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Duration: {flight.duration} • {flight.stops}</div>
                 </div>
               </div>
 
@@ -93,17 +111,17 @@ export default function BookingPage() {
                 <div style={{ fontFamily: 'var(--font-heading)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-h)' }}>
                   {flight.depart} ➔ {flight.arrive}
                 </div>
-                <div className="badge-status available" style={{ marginTop: '0.3rem' }}>
+                <span className="badge-status available" style={{ marginTop: '0.3rem', display: 'inline-flex' }}>
                   {flight.seats} seats remaining
-                </div>
+                </span>
               </div>
 
-              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
-                <div style={{ fontSize: '1.5rem', fontWeight: '800', color: '#38bdf8', fontFamily: 'var(--font-heading)' }}>
+              <div style={{ textAlign: 'right', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <div style={{ fontSize: '1.6rem', fontWeight: '800', color: getPriceColor(flight.price), fontFamily: 'var(--font-heading)' }}>
                   ${flight.price} <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontWeight: '400' }}>CAD</span>
                 </div>
                 <button
-                  className="btn btn-primary btn-sm"
+                  className="btn btn-success btn-sm"
                   onClick={() => navigate('/checkout')}
                 >
                   Select & Book ➔
@@ -116,4 +134,3 @@ export default function BookingPage() {
     </div>
   );
 }
-

@@ -60,13 +60,16 @@ export default function AdminLayout({ children }) {
             <div className="user-name">{user?.username || 'Admin Staff'}</div>
             <div className="user-role">Airline Operations</div>
           </div>
-          <button className="btn-icon" onClick={logout} title="Logout">🚪</button>
+          <button className="btn-icon" onClick={logout} title="Logout"
+                  style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>
+            🚪
+          </button>
         </div>
       </aside>
 
       {/* Main Content Area */}
       <div className="admin-main">
-        {/* Top Header */}
+        {/* Top Header Bar */}
         <header className="admin-topbar">
           <div className="topbar-search">
             <span className="search-icon">🔍</span>
@@ -78,8 +81,8 @@ export default function AdminLayout({ children }) {
               <span className="pulse-dot"></span>
               <span>Live Terminal Feed</span>
             </div>
-            <button className="btn-icon" title="Notifications">🔔</button>
-            <button className="btn btn-secondary btn-sm" onClick={() => navigate('/')}>
+            <button className="btn-icon notif-badge" title="Notifications">🔔</button>
+            <button className="btn btn-primary btn-sm" onClick={() => navigate('/')}>
               Public Portal ➔
             </button>
           </div>

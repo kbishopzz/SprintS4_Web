@@ -82,6 +82,31 @@ export default function AirlinesAdmin() {
         </button>
       </div>
 
+      {/* Summary Metrics */}
+      <div className="metrics-grid">
+        <div className="metric-card purple">
+          <div className="metric-icon purple">🏢</div>
+          <div className="metric-details">
+            <span className="metric-value">{airlines.length}</span>
+            <span className="metric-label">Total Airlines</span>
+          </div>
+        </div>
+        <div className="metric-card blue">
+          <div className="metric-icon blue">✈️</div>
+          <div className="metric-details">
+            <span className="metric-value">{airlines.reduce((sum, a) => sum + (a.activeFlights || 0), 0)}</span>
+            <span className="metric-label">Combined Daily Flights</span>
+          </div>
+        </div>
+        <div className="metric-card green">
+          <div className="metric-icon green">🤝</div>
+          <div className="metric-details">
+            <span className="metric-value">{airlines.filter(a => a.status === 'PARTNER').length}</span>
+            <span className="metric-label">Active Partners</span>
+          </div>
+        </div>
+      </div>
+
       <div className="table-container">
         {loading ? (
           <div className="loading-center">
@@ -102,10 +127,25 @@ export default function AirlinesAdmin() {
             <tbody>
               {airlines.map((a) => (
                 <tr key={a.id}>
-                  <td style={{ fontWeight: '800', color: 'var(--text-h)', fontFamily: 'var(--font-mono)' }}>{a.code}</td>
+                  <td>
+                    <span style={{
+                      fontWeight: 800,
+                      color: 'var(--bg-card)',
+                      fontFamily: 'var(--font-mono)',
+                      background: 'linear-gradient(135deg, var(--sky-blue), var(--sky-purple))',
+                      padding: '0.2rem 0.6rem',
+                      borderRadius: 'var(--radius-xs)',
+                      fontSize: '0.85rem'
+                    }}>{a.code}</span>
+                  </td>
                   <td style={{ fontWeight: '600', color: 'var(--text-h)' }}>{a.name}</td>
                   <td>{a.country}</td>
-                  <td>{a.activeFlights ?? 12} flights/day</td>
+                  <td>
+                    <span style={{ fontWeight: 700, color: 'var(--sky-blue)', fontFamily: 'var(--font-heading)' }}>
+                      {a.activeFlights ?? 12}
+                    </span>
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginLeft: '0.3rem' }}>flights/day</span>
+                  </td>
                   <td>
                     <span className="badge-status active"><span className="badge-dot"></span>{a.status || 'PARTNER'}</span>
                   </td>
@@ -121,15 +161,16 @@ export default function AirlinesAdmin() {
         )}
       </div>
 
+      {/* Add Airline Modal */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal-panel">
-            <div className="modal-header">
+            <div className="modal-header blue">
               <h3>🏢 Add Airline Partner</h3>
               <button className="btn-icon" onClick={() => setShowModal(false)}>✕</button>
             </div>
             <form onSubmit={handleCreateAirline}>
-              <div className="modal-body form-grid" style={{ gridTemplateColumns: '1fr' }}>
+              <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
                   <div className="form-group">
                     <label className="form-label">IATA Code</label>
@@ -156,5 +197,3 @@ export default function AirlinesAdmin() {
     </div>
   );
 }
-
-
