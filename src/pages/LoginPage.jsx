@@ -7,7 +7,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [localError, setLocalError] = useState('');
 
-  const { login, loginDirect, isAuthenticated, user, logout, loading, authError } = useAuth();
+  const { login, isAuthenticated, user, logout, loading, authError } = useAuth();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
