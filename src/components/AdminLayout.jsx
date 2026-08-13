@@ -32,19 +32,43 @@ export default function AdminLayout({ children }) {
             <span className="nav-icon">✈️</span>
             <span className="nav-text">Flights</span>
           </Link>
+          <Link to="/admin/passengers" className={isActive('/admin/passengers')}>
+            <span className="nav-icon">👥</span>
+            <span className="nav-text">Passengers</span>
+          </Link>
           <Link to="/admin/gates" className={isActive('/admin/gates')}>
             <span className="nav-icon">🚪</span>
             <span className="nav-text">Gates</span>
           </Link>
 
-          <div className="menu-group-title">Fleet & Management</div>
+          <div className="menu-group-title">Fleet & Locations</div>
           <Link to="/admin/aircraft" className={isActive('/admin/aircraft')}>
             <span className="nav-icon">🛩️</span>
             <span className="nav-text">Aircraft Fleet</span>
           </Link>
+          <Link to="/admin/airports" className={isActive('/admin/airports')}>
+            <span className="nav-icon">🏬</span>
+            <span className="nav-text">Airports</span>
+          </Link>
+          <Link to="/admin/cities" className={isActive('/admin/cities')}>
+            <span className="nav-icon">🏙️</span>
+            <span className="nav-text">Cities</span>
+          </Link>
           <Link to="/admin/airlines" className={isActive('/admin/airlines')}>
             <span className="nav-icon">🏢</span>
             <span className="nav-text">Partner Airlines</span>
+          </Link>
+
+          <div className="menu-group-title">Analytics & Tools</div>
+          <Link to="/admin/queries" className={isActive('/admin/queries')}>
+            <span className="nav-icon">❓</span>
+            <span className="nav-text">Domain Queries</span>
+          </Link>
+
+          <div className="menu-group-title">System</div>
+          <Link to="/admin/users" className={isActive('/admin/users')}>
+            <span className="nav-icon">🔑</span>
+            <span className="nav-text">User Management</span>
           </Link>
 
           <div className="menu-group-title">Portal</div>
@@ -52,19 +76,13 @@ export default function AdminLayout({ children }) {
             <span className="nav-icon">🌐</span>
             <span className="nav-text">Public Portal</span>
           </Link>
-
-          <div className="menu-group-title">System</div>
-          <Link to="/admin/users" className={isActive('/admin/users')}>
-            <span className="nav-icon">👥</span>
-            <span className="nav-text">User Management</span>
-          </Link>
         </nav>
 
         <div className="sidebar-user-footer">
           <div className="user-avatar">👤</div>
           <div className="user-info">
             <div className="user-name">{user?.username || 'Admin Staff'}</div>
-            <div className="user-role">Airline Operations</div>
+            <div className="user-role">{user?.role || 'Airline Operations'}</div>
           </div>
           <button className="btn-icon" onClick={() => logout()} title="Logout"
                   style={{ background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', color: 'rgba(255,255,255,0.5)' }}>
@@ -79,7 +97,7 @@ export default function AdminLayout({ children }) {
         <header className="admin-topbar">
           <div className="topbar-search">
             <span className="search-icon">🔍</span>
-            <input type="text" placeholder="Search flights, aircraft, gates..." />
+            <input type="text" placeholder="Search flights, aircraft, gates, passengers..." />
           </div>
 
           <div className="topbar-actions">
