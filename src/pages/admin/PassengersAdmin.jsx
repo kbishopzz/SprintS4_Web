@@ -948,6 +948,91 @@ export default function PassengersAdmin() {
         </div>
       )}
 
+      {/* PASSENGER CREATE / EDIT MODAL */}
+      {modalOpen && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1004, padding: '1rem' }} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+          <div className="glass-card" style={{ width: '100%', maxWidth: '480px', padding: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <h2 style={{ fontSize: '1.15rem', margin: 0 }}>
+                {editingPassenger ? '✏️ Edit Passenger Details' : '👤 Add New Passenger'}
+              </h2>
+              <button onClick={closeModal} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', fontSize: '1.2rem', cursor: 'pointer' }}>✕</button>
+            </div>
+
+            {formError && <div className="badge-status cancelled" style={{ padding: '0.5rem', marginBottom: '1rem' }}>⚠️ {formError}</div>}
+
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">First Name *</label>
+                  <input
+                    className="input-control"
+                    name="firstName"
+                    value={form.firstName}
+                    onChange={handleFormChange}
+                    placeholder="e.g. Keith"
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Last Name *</label>
+                  <input
+                    className="input-control"
+                    name="lastName"
+                    value={form.lastName}
+                    onChange={handleFormChange}
+                    placeholder="e.g. Pye"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <input
+                  type="email"
+                  className="input-control"
+                  name="email"
+                  value={form.email}
+                  onChange={handleFormChange}
+                  placeholder="e.g. keith.pye@example.com"
+                />
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div className="form-group">
+                  <label className="form-label">Phone Number</label>
+                  <input
+                    className="input-control"
+                    name="phoneNumber"
+                    value={form.phoneNumber}
+                    onChange={handleFormChange}
+                    placeholder="e.g. 709-555-0100"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Passport Number</label>
+                  <input
+                    className="input-control"
+                    name="passportNumber"
+                    value={form.passportNumber}
+                    onChange={handleFormChange}
+                    placeholder="e.g. CAN987654"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={formLoading}>
+                  {formLoading ? '⏳ Saving...' : (editingPassenger ? '💾 Save Changes' : '👤 Create Passenger')}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={closeModal} disabled={formLoading}>Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* DELETE PASSENGER CONFIRM MODAL */}
       {deleteTarget && (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1003, padding: '1rem' }}>

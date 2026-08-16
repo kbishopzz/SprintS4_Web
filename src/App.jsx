@@ -27,12 +27,52 @@ import UsersAdmin from './pages/admin/UsersAdmin';
 import NotFoundPage from './pages/NotFoundPage';
 
 /**
- * ProtectedRoute — redirects unauthenticated visitors to /login.
+ * AdminProtectedRoute — strictly requires Admin role.
  */
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
+function AdminProtectedRoute({ children }) {
+  const { isAuthenticated, user, loading } = useAuth();
+  const location = useLocation();
+
   if (loading) return null;
-  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  
+  if (!isAuthenticated) {
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  }
+
+  // If authenticated as CLIENT, show role restriction notice
+  if (user?.role && user.role !== 'ADMIN') {
+    return (
+      <div className="page-container" style={{ maxWidth: '500px', margin: '4rem auto', textAlign: 'center' }}>
+        <div className="glass-card" style={{ padding: '2.5rem', borderTop: '4px solid var(--sky-red)' }}>
+          <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🔒</div>
+          <h2 style={{ color: 'var(--sky-red)' }}>Admin Access Required</h2>
+          <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>
+            Your account (<strong>{user.username}</strong>) has <code>CLIENT</code> privileges. The Admin Portal is restricted to Administrator accounts.
+          </p>
+          <a className="btn btn-primary" href="/login?redirect=/admin">
+            Log In as Administrator ➔
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return children;
+}
+
+/**
+ * UserProtectedRoute — requires login before accessing client features.
+ */
+function UserProtectedRoute({ children }) {
+  const { isAuthenticated, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return null;
+
+  if (!isAuthenticated) {
+    return <Navigate to={`/login?redirect=${encodeURIComponent(location.pathname)}`} replace />;
+  }
+
   return children;
 }
 
@@ -42,7 +82,7 @@ function AppRoutes() {
 
   if (isAdminRoute) {
     return (
-      <ProtectedRoute>
+      <AdminProtectedRoute>
         <AdminLayout>
           <Routes>
             <Route path="/admin"             element={<AdminDashboard />} />
@@ -58,7 +98,7 @@ function AppRoutes() {
             <Route path="*"                 element={<NotFoundPage />} />
           </Routes>
         </AdminLayout>
-      </ProtectedRoute>
+      </AdminProtectedRoute>
     );
   }
 
@@ -66,11 +106,11 @@ function AppRoutes() {
     <PublicLayout>
       <Routes>
         <Route path="/"           element={<HomePage />} />
-        <Route path="/booking"    element={<BookingPage />} />
-        <Route path="/checkout"   element={<CheckoutPage />} />
-        <Route path="/my-bookings" element={<TravellerDashboard />} />
-        <Route path="/check-in"   element={<CheckInPage />} />
-        <Route path="/baggage"    element={<BaggagePage />} />
+        <Route path="/booking"    element={<UserProtectedRoute><BookingPage /></UserProtectedRoute>} />
+        <Route path="/checkout"   element={<UserProtectedRoute><CheckoutPage /></UserProtectedRoute>} />
+        <Route path="/my-bookings" element={<UserProtectedRoute><TravellerDashboard /></UserProtectedRoute>} />
+        <Route path="/check-in"   element={<UserProtectedRoute><CheckInPage /></UserProtectedRoute>} />
+        <Route path="/baggage"    element={<UserProtectedRoute><BaggagePage /></UserProtectedRoute>} />
         <Route path="/login"      element={<LoginPage />} />
         <Route path="*"           element={<NotFoundPage />} />
       </Routes>
