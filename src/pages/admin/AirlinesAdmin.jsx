@@ -1,73 +1,121 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { airlineApi } from '../../api/ApiClient';
 
+const emptyAirline = { code: '', name: '', country: 'Canada', status: 'PARTNER' };
+
 export default function AirlinesAdmin() {
-  const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [newCode, setNewCode] = useState('');
-  const [newName, setNewName] = useState('');
-  const [newCountry, setNewCountry] = useState('');
+  const [airlines, setAirlines]   = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState(null);
 
-  const initialMockAirlines = [
-    { id: 1, code: 'AC', name: 'Air Canada', country: 'Canada', activeFlights: 24, status: 'PARTNER' },
-    { id: 2, code: 'WS', name: 'WestJet', country: 'Canada', activeFlights: 16, status: 'PARTNER' },
-    { id: 3, code: 'PD', name: 'Porter Airlines', country: 'Canada', activeFlights: 8, status: 'PARTNER' },
-    { id: 4, code: 'PB', name: 'PAL Airlines', country: 'Canada', activeFlights: 6, status: 'REGIONAL' },
-  ];
+  // Modal state: Create / Edit
+  const [modalOpen, setModalOpen]         = useState(false);
+  const [editingAirline, setEditingAirline] = useState(null); // null = Create Mode
+  const [form, setForm]                   = useState(emptyAirline);
+  const [formError, setFormError]         = useState('');
+  const [formLoading, setFormLoading]     = useState(false);
 
-  const [airlines, setAirlines] = useState(initialMockAirlines);
+  // Delete state
+  const [deleteTarget, setDeleteTarget]   = useState(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
-  const fetchAirlines = async () => {
+  // ── Fetch Data ─────────────────────────────────────────────────────────────
+  const fetchAirlines = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await airlineApi.getAll();
-      if (res.data && Array.isArray(res.data) && res.data.length > 0) {
+      if (res.data && Array.isArray(res.data)) {
         setAirlines(res.data.map(a => ({
           id: a.id,
           code: a.code || 'AL',
           name: a.name || 'Airline',
           country: a.country || 'Canada',
-          activeFlights: a.activeFlights || 10,
+          activeFlights: a.activeFlights ?? (a.planes ? a.planes.length * 6 : 12),
           status: a.status || 'PARTNER'
         })));
+      } else {
+        setAirlines([]);
       }
     } catch (err) {
-      console.warn('API unavailable, using fallback mock data for Airlines');
+      console.error('[AirlinesAdmin] Fetch error:', err);
+      setError('Could not load airlines from server.');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchAirlines();
-  }, []);
+  }, [fetchAirlines]);
 
-  const handleCreateAirline = async (e) => {
-    e.preventDefault();
-    const payload = { code: newCode, name: newName, country: newCountry };
-    try {
-      const res = await airlineApi.create(payload);
-      if (res.data) {
-        setAirlines([...airlines, res.data]);
-      } else {
-        setAirlines([...airlines, { id: Date.now(), ...payload, activeFlights: 0, status: 'PARTNER' }]);
-      }
-    } catch (err) {
-      setAirlines([...airlines, { id: Date.now(), ...payload, activeFlights: 0, status: 'PARTNER' }]);
-    }
-    setNewCode('');
-    setNewName('');
-    setNewCountry('');
-    setShowModal(false);
+  // ── Modal Helpers ──────────────────────────────────────────────────────────
+  const openCreateModal = () => {
+    setEditingAirline(null);
+    setForm(emptyAirline);
+    setFormError('');
+    setModalOpen(true);
   };
 
-  const handleDelete = async (id) => {
-    try {
-      await airlineApi.delete(id);
-    } catch (err) {
-      console.warn('Delete via API failed, updating local state');
+  const openEditModal = (airline) => {
+    setEditingAirline(airline);
+    setForm({
+      code: airline.code || '',
+      name: airline.name || '',
+      country: airline.country || 'Canada',
+      status: airline.status || 'PARTNER',
+    });
+    setFormError('');
+    setModalOpen(true);
+  };
+
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!form.code.trim() || !form.name.trim()) {
+      setFormError('Airline code and name are required.');
+      return;
     }
-    setAirlines(airlines.filter(a => a.id !== id));
+    setFormLoading(true);
+    setFormError('');
+
+    const payload = {
+      code: form.code.trim().toUpperCase(),
+      name: form.name.trim(),
+      country: form.country.trim() || 'Canada',
+      status: form.status,
+    };
+
+    try {
+      if (editingAirline) {
+        const res = await airlineApi.update(editingAirline.id, payload);
+        setAirlines(airlines.map(a => a.id === editingAirline.id ? (res.data || { ...a, ...payload }) : a));
+      } else {
+        const res = await airlineApi.create(payload);
+        setAirlines([...airlines, res.data || { id: Date.now(), ...payload, activeFlights: 0 }]);
+      }
+      setModalOpen(false);
+    } catch (err) {
+      console.error('[AirlinesAdmin] Save error:', err);
+      setFormError('Failed to save airline partner.');
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    try {
+      await airlineApi.delete(deleteTarget.id);
+      setAirlines(airlines.filter(a => a.id !== deleteTarget.id));
+      setDeleteTarget(null);
+    } catch (err) {
+      console.error('[AirlinesAdmin] Delete error:', err);
+      alert('Could not delete airline partner.');
+    } finally {
+      setDeleteLoading(false);
+    }
   };
 
   return (
@@ -77,10 +125,17 @@ export default function AirlinesAdmin() {
           <h1>Manage Airlines</h1>
           <p className="page-subtitle">Register airline codes, partner agreements, and contact channels.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setShowModal(true)}>
+        <button className="btn btn-primary" onClick={openCreateModal}>
           + Add Airline Partner
         </button>
       </div>
+
+      {error && (
+        <div className="alert alert-error" style={{ marginBottom: '1.5rem' }}>
+          <span>⚠️ {error}</span>
+          <button className="btn btn-secondary btn-sm" onClick={fetchAirlines}>Retry</button>
+        </div>
+      )}
 
       {/* Summary Metrics */}
       <div className="metrics-grid">
@@ -150,8 +205,9 @@ export default function AirlinesAdmin() {
                     <span className="badge-status active"><span className="badge-dot"></span>{a.status || 'PARTNER'}</span>
                   </td>
                   <td>
-                    <div style={{ display: 'flex', gap: '0.5rem' }}>
-                      <button className="btn btn-danger btn-sm" onClick={() => handleDelete(a.id)}>Delete</button>
+                    <div style={{ display: 'flex', gap: '0.4rem' }}>
+                      <button className="btn btn-secondary btn-sm" onClick={() => openEditModal(a)}>Edit</button>
+                      <button className="btn btn-danger btn-sm" onClick={() => setDeleteTarget(a)}>Delete</button>
                     </div>
                   </td>
                 </tr>
@@ -161,36 +217,97 @@ export default function AirlinesAdmin() {
         )}
       </div>
 
-      {/* Add Airline Modal */}
-      {showModal && (
+      {/* Create / Edit Airline Modal */}
+      {modalOpen && (
         <div className="modal-overlay">
           <div className="modal-panel">
             <div className="modal-header blue">
-              <h3>🏢 Add Airline Partner</h3>
-              <button className="btn-icon" onClick={() => setShowModal(false)}>✕</button>
+              <h3>{editingAirline ? '✏️ Edit Airline Partner' : '🏢 Add Airline Partner'}</h3>
+              <button className="btn-icon" onClick={() => setModalOpen(false)}>✕</button>
             </div>
-            <form onSubmit={handleCreateAirline}>
+            <form onSubmit={handleSubmit}>
               <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                {formError && <div className="alert alert-error">{formError}</div>}
+
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '1rem' }}>
                   <div className="form-group">
-                    <label className="form-label">IATA Code</label>
-                    <input type="text" className="input-control" placeholder="AC" value={newCode} onChange={(e) => setNewCode(e.target.value)} required />
+                    <label className="form-label">IATA Code *</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      placeholder="AC"
+                      value={form.code}
+                      onChange={(e) => setForm({ ...form, code: e.target.value })}
+                      required
+                    />
                   </div>
                   <div className="form-group">
-                    <label className="form-label">Airline Name</label>
-                    <input type="text" className="input-control" placeholder="Air Canada" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+                    <label className="form-label">Airline Name *</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      placeholder="Air Canada"
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      required
+                    />
                   </div>
                 </div>
-                <div className="form-group">
-                  <label className="form-label">Country of Origin</label>
-                  <input type="text" className="input-control" placeholder="Canada" value={newCountry} onChange={(e) => setNewCountry(e.target.value)} required />
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">Country of Origin</label>
+                    <input
+                      type="text"
+                      className="input-control"
+                      placeholder="Canada"
+                      value={form.country}
+                      onChange={(e) => setForm({ ...form, country: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Agreement Tier</label>
+                    <select
+                      className="input-control"
+                      value={form.status}
+                      onChange={(e) => setForm({ ...form, status: e.target.value })}
+                    >
+                      <option value="PARTNER">PARTNER</option>
+                      <option value="ALLIANCE">STAR ALLIANCE</option>
+                      <option value="REGIONAL">REGIONAL</option>
+                    </select>
+                  </div>
                 </div>
               </div>
               <div className="modal-footer">
-                <button type="button" className="btn btn-secondary" onClick={() => setShowModal(false)}>Cancel</button>
-                <button type="submit" className="btn btn-primary">Save Airline</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setModalOpen(false)}>Cancel</button>
+                <button type="submit" className="btn btn-primary" disabled={formLoading}>
+                  {formLoading ? 'Saving...' : (editingAirline ? 'Save Changes' : 'Save Airline')}
+                </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deleteTarget && (
+        <div className="modal-overlay">
+          <div className="modal-panel" style={{ maxWidth: '420px' }}>
+            <div className="modal-header red">
+              <h3>🗑️ Delete Airline Partner</h3>
+              <button className="btn-icon" onClick={() => setDeleteTarget(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p>Are you sure you want to delete <strong>{deleteTarget.name}</strong> ({deleteTarget.code})?</p>
+            </div>
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setDeleteTarget(null)}>Cancel</button>
+              <button type="button" className="btn btn-danger" onClick={handleDeleteConfirm} disabled={deleteLoading}>
+                {deleteLoading ? 'Deleting...' : 'Delete Partner'}
+              </button>
+            </div>
           </div>
         </div>
       )}

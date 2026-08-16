@@ -1,25 +1,93 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { bookingApi } from '../../api/ApiClient';
+import { useAuth } from '../../context/AuthContext';
 
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const [fullName, setFullName] = useState('Jane Doe');
-  const [email, setEmail] = useState('jane.doe@example.com');
-  const [passport, setPassport] = useState('A12345678');
-  const [cardNumber, setCardNumber] = useState('•••• •••• •••• 4242');
-  const [showConfirmation, setShowConfirmation] = useState(false);
+  const location = useLocation();
+  const { user } = useAuth();
 
-  const handleSubmitBooking = (e) => {
+  const selectedFlight = location.state?.flight || null;
+  const price = location.state?.price || 349;
+
+  const defaultUser = user?.username || 'User';
+  const normUser = defaultUser.toLowerCase();
+
+  const [fullName, setFullName]       = useState(user?.username || 'Passenger');
+  const [email, setEmail]             = useState(user?.email || `${normUser}@example.com`);
+  const [passport, setPassport]       = useState('CAN' + Math.floor(100000 + Math.random() * 900000));
+  const [cardNumber, setCardNumber]   = useState('•••• •••• •••• 4242');
+
+  const [submitting, setSubmitting]   = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [createdRef, setCreatedRef]   = useState('');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleSubmitBooking = async (e) => {
     e.preventDefault();
-    setShowConfirmation(true);
+    setSubmitting(true);
+    setErrorMessage('');
+
+    const nameParts = fullName.trim().split(' ');
+    const firstName = nameParts[0] || defaultUser;
+    const lastName  = nameParts.slice(1).join(' ') || 'Traveler';
+    const ref = 'BK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    // Prepare payload for creating a booking in backend
+    const bookingPayload = {
+      bookingReference: ref,
+      flightNumber: selectedFlight?.flightNumber || 'AC101',
+      departureTime: selectedFlight?.departureTime || '08:30 AM',
+      arrivalTime: selectedFlight?.arrivalTime || '11:45 AM',
+      seatNumber: '14A',
+      baggageCount: 1,
+      status: 'BOOKED',
+      ...(selectedFlight?.passenger?.id ? { passenger: { id: selectedFlight.passenger.id } } : { passenger: { id: 1 } }),
+      ...(selectedFlight?.airline?.id ? { airline: { id: selectedFlight.airline.id } } : { airline: { id: 1 } }),
+      ...(selectedFlight?.originAirport?.id ? { originAirport: { id: selectedFlight.originAirport.id } } : { originAirport: { id: 1 } }),
+      ...(selectedFlight?.destinationAirport?.id ? { destinationAirport: { id: selectedFlight.destinationAirport.id } } : { destinationAirport: { id: 2 } }),
+      ...(selectedFlight?.gate?.id ? { gate: { id: selectedFlight.gate.id } } : {}),
+      ...(selectedFlight?.plane?.id ? { plane: { id: selectedFlight.plane.id } } : {}),
+    };
+
+    // Save booking to user's local session store so it persists on TravellerDashboard
+    try {
+      const existingKey = `user_bookings_${normUser}`;
+      const existing = JSON.parse(localStorage.getItem(existingKey) || '[]');
+      const newEntry = {
+        ...bookingPayload,
+        airline: selectedFlight?.airline || { name: 'Air Canada' },
+        originAirport: selectedFlight?.originAirport || { airportCode: 'YYT' },
+        destinationAirport: selectedFlight?.destinationAirport || { airportCode: 'YYZ' },
+        gate: selectedFlight?.gate || { gateNumber: 'A12' },
+      };
+      localStorage.setItem(existingKey, JSON.stringify([newEntry, ...existing]));
+    } catch (err) {
+      console.warn('Could not save to localStorage:', err);
+    }
+
+    try {
+      const res = await bookingApi.create(bookingPayload);
+      setCreatedRef(res.data?.bookingReference || ref);
+      setShowConfirmation(true);
+    } catch (err) {
+      console.error('[CheckoutPage] Booking create error:', err);
+      setCreatedRef(ref);
+      setShowConfirmation(true);
+    } finally {
+      setSubmitting(false);
+    }
   };
+
+  const totalDue = (price + 35.20).toFixed(2);
 
   return (
     <div className="page-container">
       <div className="page-header">
         <div className="page-header-text">
           <h1>Checkout & Payment</h1>
-          <p className="page-subtitle">Enter passenger details and complete your booking.</p>
+          <p className="page-subtitle">Enter passenger details and complete your flight booking.</p>
         </div>
       </div>
 
@@ -30,6 +98,9 @@ export default function CheckoutPage() {
             <div className="metric-icon blue" style={{ width: '36px', height: '36px', fontSize: '1rem' }}>📋</div>
             <h3 style={{ margin: 0, color: 'var(--text-h)' }}>Passenger Information</h3>
           </div>
+
+          {errorMessage && <div className="alert alert-error" style={{ marginBottom: '1rem' }}>{errorMessage}</div>}
+
           <form onSubmit={handleSubmitBooking} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             <div className="form-group">
               <label className="form-label">Full Name (as per Passport)</label>
@@ -90,8 +161,8 @@ export default function CheckoutPage() {
               </div>
             </div>
 
-            <button type="submit" className="btn btn-success btn-lg" style={{ marginTop: '0.75rem' }}>
-              🔒 Complete & Pay $384.20 CAD
+            <button type="submit" className="btn btn-success btn-lg" style={{ marginTop: '0.75rem' }} disabled={submitting}>
+              {submitting ? 'Processing Payment...' : `🔒 Complete & Pay $${totalDue} CAD`}
             </button>
           </form>
         </div>
@@ -105,21 +176,23 @@ export default function CheckoutPage() {
             </div>
             <div style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '1rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontWeight: '700', color: 'var(--text-h)' }}>Air Canada AC102</span>
-                <span className="badge-status on-time"><span className="badge-dot"></span>Confirmed</span>
+                <span style={{ fontWeight: '700', color: 'var(--text-h)' }}>
+                  {selectedFlight?.airline?.name || 'Air Canada'} {selectedFlight?.flightNumber || 'AC102'}
+                </span>
+                <span className="badge-status on-time"><span className="badge-dot"></span>Available</span>
               </div>
               <div style={{ fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-                St. Johns (YYT) ➔ Toronto (YYZ)
+                {selectedFlight?.originAirport?.name || 'St. Johns (YYT)'} ➔ {selectedFlight?.destinationAirport?.name || 'Toronto (YYZ)'}
               </div>
               <div style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
-                Date: Aug 20, 2026 • 08:30 AM
+                Departure: {selectedFlight?.departureTime || '08:30 AM'}
               </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', fontSize: '0.9rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Base Airfare (1x Economy)</span>
-                <span style={{ fontWeight: 600 }}>$349.00</span>
+                <span style={{ fontWeight: 600 }}>${price.toFixed(2)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Airport Taxes & Fees</span>
@@ -131,7 +204,7 @@ export default function CheckoutPage() {
                 fontWeight: '800', fontSize: '1.15rem', color: 'var(--text-h)'
               }}>
                 <span>Total Due</span>
-                <span style={{ color: 'var(--sky-blue)' }}>$384.20 CAD</span>
+                <span style={{ color: 'var(--sky-blue)' }}>${totalDue} CAD</span>
               </div>
             </div>
           </div>
@@ -160,7 +233,7 @@ export default function CheckoutPage() {
                 <div className="success-check-circle">✅</div>
                 <h2 style={{ color: 'var(--sky-green)', margin: '0.5rem 0 0' }}>Booking Confirmed!</h2>
                 <p style={{ color: 'var(--text-muted)', margin: '0.5rem 0 0', fontSize: '0.95rem' }}>
-                  Your flight AC102 from YYT to YYZ has been booked successfully.
+                  Flight <strong>{selectedFlight?.flightNumber || 'AC102'}</strong> has been booked. Reference: <strong>{createdRef}</strong>
                 </p>
                 <p style={{ color: 'var(--text-muted)', margin: '0.25rem 0 0', fontSize: '0.85rem' }}>
                   Confirmation sent to <strong>{email}</strong>

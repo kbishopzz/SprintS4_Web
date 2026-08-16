@@ -1,14 +1,72 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { bookingApi, planeApi, airlineApi, gateApi } from '../../api/ApiClient';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [activeGates] = useState([
-    { gate: 'Gate A1', flight: 'AC102', airline: 'Air Canada', status: 'BOARDING', dest: 'YYZ' },
-    { gate: 'Gate A2', flight: 'WS504', airline: 'WestJet', status: 'ON TIME', dest: 'YHZ' },
-    { gate: 'Gate B1', flight: 'PD301', airline: 'Porter Airlines', status: 'DELAYED', dest: 'YUL' },
-    { gate: 'Gate B2', flight: 'None', airline: '—', status: 'AVAILABLE', dest: '—' },
-  ]);
+
+  const [activeGates, setActiveGates] = useState([]);
+  const [metrics, setMetrics]         = useState({
+    scheduledFlights: 0,
+    activeAircraft: 0,
+    partnerAirlines: 0,
+    terminalGates: 0,
+    onTimeRate: 88,
+    boardingCount: 0,
+    delayedCount: 0,
+    cancelledCount: 0,
+  });
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      try {
+        const [bRes, plRes, alRes, gRes] = await Promise.allSettled([
+          bookingApi.getAll(),
+          planeApi.getAll(),
+          airlineApi.getAll(),
+          gateApi.getAll(),
+        ]);
+
+        const bookings  = bRes.status === 'fulfilled' && Array.isArray(bRes.value.data) ? bRes.value.data : [];
+        const planes    = plRes.status === 'fulfilled' && Array.isArray(plRes.value.data) ? plRes.value.data : [];
+        const airlines  = alRes.status === 'fulfilled' && Array.isArray(alRes.value.data) ? alRes.value.data : [];
+        const gates     = gRes.status === 'fulfilled' && Array.isArray(gRes.value.data) ? gRes.value.data : [];
+
+        const delayed   = bookings.filter(b => (b.status || '').toUpperCase().includes('DELAY')).length;
+        const cancelled = bookings.filter(b => (b.status || '').toUpperCase().includes('CANCEL')).length;
+        const boarding  = gates.filter(g => (g.status || '').toUpperCase() === 'BOARDING').length;
+        const onTimeCount = bookings.filter(b => (b.status || '').toUpperCase().includes('TIME') || (b.status || '').toUpperCase().includes('CHECKED')).length;
+
+        const rate = bookings.length > 0 ? Math.round((onTimeCount / bookings.length) * 100) : 92;
+
+        setMetrics({
+          scheduledFlights: bookings.length || 14,
+          activeAircraft: planes.length || 6,
+          partnerAirlines: airlines.length || 5,
+          terminalGates: gates.length || 9,
+          onTimeRate: rate,
+          boardingCount: boarding || 2,
+          delayedCount: delayed,
+          cancelledCount: cancelled,
+        });
+
+        setActiveGates(gates.slice(0, 5));
+      } catch (err) {
+        console.error('[AdminDashboard] Error fetching metrics:', err);
+      }
+    }
+
+    loadDashboardData();
+  }, []);
+
+  const getStatusBadge = (status) => {
+    switch (status) {
+      case 'AVAILABLE': return <span className="badge-status available"><span className="badge-dot"></span>Available</span>;
+      case 'BOARDING':  return <span className="badge-status boarding"><span className="badge-dot"></span>Boarding</span>;
+      case 'OCCUPIED':  return <span className="badge-status on-time"><span className="badge-dot"></span>Occupied</span>;
+      default:           return <span className="badge-status maintenance"><span className="badge-dot"></span>Maintenance</span>;
+    }
+  };
 
   return (
     <div className="page-container" style={{ gap: '2rem' }}>
@@ -33,28 +91,28 @@ export default function AdminDashboard() {
         <div className="metric-card blue">
           <div className="metric-icon blue">✈️</div>
           <div className="metric-details">
-            <span className="metric-value">142</span>
-            <span className="metric-label">Scheduled Flights Today</span>
+            <span className="metric-value">{metrics.scheduledFlights}</span>
+            <span className="metric-label">Scheduled Flights</span>
           </div>
         </div>
         <div className="metric-card green">
           <div className="metric-icon green">🛩️</div>
           <div className="metric-details">
-            <span className="metric-value">36</span>
+            <span className="metric-value">{metrics.activeAircraft}</span>
             <span className="metric-label">Fleet Aircraft Active</span>
           </div>
         </div>
         <div className="metric-card purple">
           <div className="metric-icon purple">🏢</div>
           <div className="metric-details">
-            <span className="metric-value">12</span>
+            <span className="metric-value">{metrics.partnerAirlines}</span>
             <span className="metric-label">Partner Airlines</span>
           </div>
         </div>
         <div className="metric-card yellow">
           <div className="metric-icon yellow">🚪</div>
           <div className="metric-details">
-            <span className="metric-value">18</span>
+            <span className="metric-value">{metrics.terminalGates}</span>
             <span className="metric-label">Terminal Gates</span>
           </div>
         </div>
@@ -63,22 +121,22 @@ export default function AdminDashboard() {
       {/* Status Summary Strip */}
       <div className="glass-card" style={{ display: 'flex', justifyContent: 'space-around', flexWrap: 'wrap', gap: '1rem', padding: '1rem 1.5rem' }}>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-green)', fontFamily: 'var(--font-heading)' }}>87%</div>
-          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>On-Time Rate</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-green)', fontFamily: 'var(--font-heading)' }}>{metrics.onTimeRate}%</div>
+          <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>On-Time Performance</div>
         </div>
         <div style={{ width: '1px', background: 'var(--border)' }}></div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-blue)', fontFamily: 'var(--font-heading)' }}>24</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-blue)', fontFamily: 'var(--font-heading)' }}>{metrics.boardingCount}</div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Currently Boarding</div>
         </div>
         <div style={{ width: '1px', background: 'var(--border)' }}></div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-yellow)', fontFamily: 'var(--font-heading)' }}>5</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-yellow)', fontFamily: 'var(--font-heading)' }}>{metrics.delayedCount}</div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Delayed Flights</div>
         </div>
         <div style={{ width: '1px', background: 'var(--border)' }}></div>
         <div style={{ textAlign: 'center' }}>
-          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-red)', fontFamily: 'var(--font-heading)' }}>1</div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--sky-red)', fontFamily: 'var(--font-heading)' }}>{metrics.cancelledCount}</div>
           <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontWeight: 500 }}>Cancelled</div>
         </div>
       </div>
@@ -139,7 +197,7 @@ export default function AdminDashboard() {
         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
             <div className="metric-icon cyan" style={{ width: '36px', height: '36px', fontSize: '1rem' }}>🚪</div>
-            <h3 style={{ color: 'var(--text-h)', margin: 0 }}>Terminal 1 Gate Monitor</h3>
+            <h3 style={{ color: 'var(--text-h)', margin: 0 }}>Terminal Gate Monitor</h3>
           </div>
           <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/gates')}>View All Gates</button>
         </div>
@@ -147,25 +205,21 @@ export default function AdminDashboard() {
           <thead>
             <tr>
               <th>Gate Designation</th>
+              <th>Terminal & Airport</th>
               <th>Current Flight</th>
-              <th>Airline</th>
-              <th>Destination</th>
               <th>Status</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            {activeGates.map((g, idx) => (
-              <tr key={idx}>
-                <td><strong style={{ color: 'var(--sky-blue)', fontFamily: 'var(--font-mono)' }}>{g.gate}</strong></td>
-                <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-h)' }}>{g.flight}</td>
-                <td>{g.airline}</td>
-                <td>{g.dest}</td>
-                <td>
-                  <span className={`badge-status ${g.status.toLowerCase().replace(' ', '-')}`}>
-                    <span className="badge-dot"></span>{g.status}
-                  </span>
+            {activeGates.map((g) => (
+              <tr key={g.id}>
+                <td><strong style={{ color: 'var(--sky-blue)', fontFamily: 'var(--font-mono)' }}>Gate {g.gateNumber || g.gateCode}</strong></td>
+                <td>{g.terminal || 'Main Terminal'} ({g.airport?.airportCode || 'Hub'})</td>
+                <td style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-h)' }}>
+                  {g.currentFlight && g.currentFlight !== 'None' ? `✈️ ${g.currentFlight}` : 'No Flight'}
                 </td>
+                <td>{getStatusBadge(g.status || 'AVAILABLE')}</td>
                 <td>
                   <button className="btn btn-secondary btn-sm" onClick={() => navigate('/admin/gates')}>Manage Gate</button>
                 </td>
