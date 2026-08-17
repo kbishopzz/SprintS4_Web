@@ -197,6 +197,46 @@ export default function GatesAdmin() {
     }
   };
 
+  // Manifest Modal State
+  const [manifestGate, setManifestGate]       = useState(null);
+  const [manifestBookings, setManifestBookings] = useState([]);
+  const [manifestLoading, setManifestLoading] = useState(false);
+  const [manifestFilter, setManifestFilter]   = useState('ALL'); // ALL, CHECKED_IN, PENDING
+
+  const handleOpenManifest = async (gate) => {
+    setManifestGate(gate);
+    setManifestLoading(true);
+    setManifestFilter('ALL');
+    try {
+      const flight = gate.currentFlight && gate.currentFlight !== 'None' ? gate.currentFlight.trim() : '';
+      const res = await bookingApi.getAll();
+      const allBookings = res.data || [];
+      // Filter bookings matching this gate or flight
+      const matched = allBookings.filter(b => 
+        (b.gate?.id === gate.id) || 
+        (flight && b.flightNumber && b.flightNumber.toLowerCase() === flight.toLowerCase())
+      );
+      setManifestBookings(matched);
+    } catch (err) {
+      console.error('[GatesAdmin] Error loading manifest:', err);
+      setManifestBookings([]);
+    } finally {
+      setManifestLoading(false);
+    }
+  };
+
+  const handleManifestCheckIn = async (bookingId) => {
+    try {
+      await bookingApi.checkIn(bookingId);
+      setManifestBookings(manifestBookings.map(b => 
+        b.id === bookingId ? { ...b, status: 'CHECKED_IN', checkInTime: new Date().toISOString().replace('T', ' ').substring(0, 16) } : b
+      ));
+    } catch (err) {
+      console.error('[GatesAdmin] Instant check-in error:', err);
+      alert('Could not complete check-in for passenger.');
+    }
+  };
+
   // ── Render Badges ──────────────────────────────────────────────────────────
   const getStatusBadge = (status) => {
     switch (status) {
@@ -349,6 +389,9 @@ export default function GatesAdmin() {
                     <td>{getStatusBadge(g.status || 'AVAILABLE')}</td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                        <button className="btn btn-primary btn-sm" onClick={() => handleOpenManifest(g)}>
+                          👥 Passengers
+                        </button>
                         <button className="btn btn-secondary btn-sm" onClick={() => openAssignModal(g)}>Assign Flight</button>
                         <button className="btn btn-secondary btn-sm" onClick={() => handleToggleStatus(g)}>Toggle Status</button>
                         <button className="btn btn-secondary btn-sm" onClick={() => openEditModal(g)}>Edit</button>
@@ -362,6 +405,159 @@ export default function GatesAdmin() {
           </table>
         )}
       </div>
+
+      {/* Passenger Manifest / Check-In List Modal */}
+      {manifestGate && (
+        <div className="modal-overlay">
+          <div className="modal-panel" style={{ maxWidth: '850px' }}>
+            <div className="modal-header blue">
+              <div>
+                <h3>👥 Gate Manifest &amp; Passenger Check-In List</h3>
+                <div style={{ fontSize: '0.85rem', opacity: 0.85, marginTop: '0.2rem' }}>
+                  Gate {manifestGate.gateNumber || manifestGate.gateCode} • {manifestGate.terminal || 'Main Terminal'} ({manifestGate.airport?.airportCode || 'Hub'}) — Active Flight: <strong>{manifestGate.currentFlight && manifestGate.currentFlight !== 'None' ? manifestGate.currentFlight : 'No Scheduled Flight'}</strong>
+                </div>
+              </div>
+              <button className="btn-icon" onClick={() => setManifestGate(null)}>✕</button>
+            </div>
+            
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+              {/* Manifest Summary Bar */}
+              <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', background: 'var(--sky-blue-light)', borderRadius: 'var(--radius-sm)' }}>
+                <div style={{ display: 'flex', gap: '1.5rem' }}>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Total Booked</span>
+                    <strong style={{ fontSize: '1.1rem', color: 'var(--text-h)' }}>{manifestBookings.length}</strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Checked-In</span>
+                    <strong style={{ fontSize: '1.1rem', color: 'var(--sky-green)' }}>
+                      {manifestBookings.filter(b => b.status === 'CHECKED_IN' || b.checkInTime).length}
+                    </strong>
+                  </div>
+                  <div>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'block' }}>Pending Check-In</span>
+                    <strong style={{ fontSize: '1.1rem', color: 'var(--sky-yellow)' }}>
+                      {manifestBookings.filter(b => b.status !== 'CHECKED_IN' && !b.checkInTime).length}
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Filter Pills */}
+                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                  <button
+                    className={`btn btn-sm ${manifestFilter === 'ALL' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setManifestFilter('ALL')}
+                  >
+                    All ({manifestBookings.length})
+                  </button>
+                  <button
+                    className={`btn btn-sm ${manifestFilter === 'CHECKED_IN' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setManifestFilter('CHECKED_IN')}
+                  >
+                    Checked-In Only ({manifestBookings.filter(b => b.status === 'CHECKED_IN' || b.checkInTime).length})
+                  </button>
+                  <button
+                    className={`btn btn-sm ${manifestFilter === 'PENDING' ? 'btn-primary' : 'btn-secondary'}`}
+                    onClick={() => setManifestFilter('PENDING')}
+                  >
+                    Pending ({manifestBookings.filter(b => b.status !== 'CHECKED_IN' && !b.checkInTime).length})
+                  </button>
+                </div>
+              </div>
+
+              {manifestLoading ? (
+                <div className="loading-center" style={{ padding: '2rem' }}>
+                  <div className="spinner"></div> Loading passenger manifest...
+                </div>
+              ) : manifestBookings.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                  <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>📭</div>
+                  <p style={{ fontWeight: 600, color: 'var(--text-h)', margin: '0 0 0.25rem' }}>No Passengers Assigned to this Flight/Gate</p>
+                  <p style={{ fontSize: '0.85rem', margin: 0 }}>Bookings linked to Gate {manifestGate.gateNumber} or Flight {manifestGate.currentFlight} will appear here automatically.</p>
+                </div>
+              ) : (
+                <div className="table-container" style={{ maxHeight: '350px', overflowY: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Passenger Name</th>
+                        <th>Seat</th>
+                        <th>Baggage</th>
+                        <th>Check-In Status</th>
+                        <th>Check-In Time</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {manifestBookings
+                        .filter(b => {
+                          const isCheckedIn = b.status === 'CHECKED_IN' || !!b.checkInTime;
+                          if (manifestFilter === 'CHECKED_IN') return isCheckedIn;
+                          if (manifestFilter === 'PENDING') return !isCheckedIn;
+                          return true;
+                        })
+                        .map((b) => {
+                          const isCheckedIn = b.status === 'CHECKED_IN' || !!b.checkInTime;
+                          const pName = b.passenger ? `${b.passenger.firstName} ${b.passenger.lastName}` : (b.passengerName || 'Unassigned Passenger');
+                          return (
+                            <tr key={b.id}>
+                              <td>
+                                <strong style={{ color: 'var(--text-h)' }}>{pName}</strong>
+                                <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                  Ref: <span style={{ fontFamily: 'var(--font-mono)' }}>{b.bookingReference || `BK-${b.id}`}</span>
+                                  {b.passenger?.passportNumber ? ` • ${b.passenger.passportNumber}` : ''}
+                                </div>
+                              </td>
+                              <td>
+                                <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--sky-blue)' }}>
+                                  {b.seatNumber || 'N/A'}
+                                </span>
+                              </td>
+                              <td>
+                                <span style={{ fontSize: '0.85rem' }}>
+                                  🧳 {b.baggageCount || 0} Bag{b.baggageCount === 1 ? '' : 's'}
+                                </span>
+                              </td>
+                              <td>
+                                {isCheckedIn ? (
+                                  <span className="badge-status available" style={{ fontSize: '0.75rem' }}>
+                                    <span className="badge-dot"></span>Checked In
+                                  </span>
+                                ) : (
+                                  <span className="badge-status maintenance" style={{ fontSize: '0.75rem' }}>
+                                    <span className="badge-dot"></span>Pending Check-In
+                                  </span>
+                                )}
+                              </td>
+                              <td style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                                {b.checkInTime || '—'}
+                              </td>
+                              <td>
+                                {!isCheckedIn && (
+                                  <button
+                                    className="btn btn-primary btn-sm"
+                                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                                    onClick={() => handleManifestCheckIn(b.id)}
+                                  >
+                                    ⚡ Staff Check-In
+                                  </button>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button type="button" className="btn btn-secondary" onClick={() => setManifestGate(null)}>Close Manifest</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create / Edit Gate Modal */}
       {modalOpen && (

@@ -1,19 +1,22 @@
 import { useState, useEffect } from 'react';
-import { cityApi, passengerApi, planeApi } from '../../api/ApiClient';
+import { cityApi, passengerApi, planeApi, gateApi, bookingApi } from '../../api/ApiClient';
 
 export default function DomainQueriesAdmin() {
-  const [activeTab, setActiveTab]   = useState('q1'); // q1, q2, q3, q4
+  const [activeTab, setActiveTab]   = useState('q1'); // q1, q2, q3, q4, q5
 
   // Pickers data
   const [cities, setCities]         = useState([]);
   const [passengers, setPassengers] = useState([]);
   const [planes, setPlanes]         = useState([]);
+  const [gates, setGates]           = useState([]);
 
   // Query inputs
   const [selectedCityId, setSelectedCityId]           = useState('');
   const [selectedPassengerId1, setSelectedPassengerId1] = useState('');
   const [selectedPlaneId, setSelectedPlaneId]         = useState('');
   const [selectedPassengerId2, setSelectedPassengerId2] = useState('');
+  const [selectedFlightNo, setSelectedFlightNo]       = useState('');
+  const [selectedGateId, setSelectedGateId]           = useState('');
 
   // Results
   const [results, setResults]       = useState(null);
@@ -24,10 +27,11 @@ export default function DomainQueriesAdmin() {
   useEffect(() => {
     async function loadDropdowns() {
       try {
-        const [cRes, pRes, plRes] = await Promise.allSettled([
+        const [cRes, pRes, plRes, gRes] = await Promise.allSettled([
           cityApi.getAll(0, 100),
           passengerApi.getAll(0, 100),
           planeApi.getAll(),
+          gateApi.getAll(),
         ]);
 
         if (cRes.status === 'fulfilled') {
@@ -40,6 +44,9 @@ export default function DomainQueriesAdmin() {
         }
         if (plRes.status === 'fulfilled' && Array.isArray(plRes.value.data)) {
           setPlanes(plRes.value.data);
+        }
+        if (gRes.status === 'fulfilled' && Array.isArray(gRes.value.data)) {
+          setGates(gRes.value.data);
         }
       } catch (err) {
         console.error('[DomainQueriesAdmin] Error loading dropdown options:', err);
@@ -107,6 +114,26 @@ export default function DomainQueriesAdmin() {
     } finally { setLoading(false); }
   };
 
+  // Run Query 5: Checked-In Passengers on Flight at Gate
+  const runQuery5 = async () => {
+    if (!selectedFlightNo && !selectedGateId) {
+      setError('Please select or type a Flight Number, or select a Gate.');
+      return;
+    }
+    setLoading(true); setError(null); setResults(null);
+    try {
+      const res = await bookingApi.getManifest(selectedFlightNo, selectedGateId, 'CHECKED_IN');
+      const manifest = Array.isArray(res.data) ? res.data : [];
+      setResults({
+        type: 'manifest',
+        title: `Checked-In Passengers ${selectedFlightNo ? `on Flight ${selectedFlightNo}` : ''} ${selectedGateId ? `at Gate #${selectedGateId}` : ''}`,
+        data: manifest,
+      });
+    } catch (err) {
+      setError(err?.response?.data?.message || err?.message || 'Query execution failed.');
+    } finally { setLoading(false); }
+  };
+
   return (
     <div className="page-container">
       {/* Header */}
@@ -120,12 +147,13 @@ export default function DomainQueriesAdmin() {
       </div>
 
       {/* Query Navigation Tabs */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
         {[
           { id: 'q1', icon: '🏙️', label: 'Airports in City', sub: 'What airports are in each city?' },
           { id: 'q2', icon: '🛩️', label: 'Planes for Passenger', sub: 'What aircraft has a passenger taken?' },
           { id: 'q3', icon: '✈️', label: 'Airports for Plane', sub: 'What airports are served by a plane?' },
           { id: 'q4', icon: '🌐', label: 'Airports for Passenger', sub: 'What airports has a passenger used?' },
+          { id: 'q5', icon: '👥', label: 'Checked-In Manifest', sub: 'Passengers on a flight at a certain gate' },
         ].map((t) => (
           <div
             key={t.id}
@@ -289,6 +317,43 @@ export default function DomainQueriesAdmin() {
             </div>
           </div>
         )}
+
+        {activeTab === 'q5' && (
+          <div>
+            <h3 style={{ margin: '0 0 0.5rem', fontSize: '1.05rem', color: 'var(--text-h)' }}>
+              5. View Checked-In Passengers by Flight &amp; Gate
+            </h3>
+            <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+              View all checked-in passengers for a specific flight number at a designated terminal gate.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <input
+                type="text"
+                className="input-control"
+                style={{ width: '180px', margin: 0 }}
+                placeholder="Flight # (e.g. AC101)"
+                value={selectedFlightNo}
+                onChange={(e) => setSelectedFlightNo(e.target.value)}
+              />
+              <select
+                className="input-control"
+                style={{ width: '240px', margin: 0 }}
+                value={selectedGateId}
+                onChange={(e) => setSelectedGateId(e.target.value)}
+              >
+                <option value="">-- Any / Select Gate --</option>
+                {gates.map((g) => (
+                  <option key={g.id} value={g.id}>
+                    Gate {g.gateNumber || g.gateCode} ({g.terminal || 'Main'} - {g.currentFlight ? `✈️ ${g.currentFlight}` : 'No flight'})
+                  </option>
+                ))}
+              </select>
+              <button className="btn btn-primary" onClick={() => runQuery5()} disabled={loading}>
+                {loading ? '⏳ Fetching Manifest...' : '👥 View Manifest'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Error banner */}
@@ -312,7 +377,63 @@ export default function DomainQueriesAdmin() {
 
           {results.data.length === 0 ? (
             <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-              📭 No records returned for this domain query.
+              📭 No checked-in passengers or records found for this query.
+            </div>
+          ) : results.type === 'manifest' ? (
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Passenger Name', 'Passport #', 'Flight', 'Gate', 'Seat', 'Baggage', 'Status', 'Check-In Time'].map((h) => (
+                      <th key={h} style={{ padding: '0.85rem 1.25rem', textAlign: 'left', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.data.map((b) => {
+                    const pName = b.passenger ? `${b.passenger.firstName} ${b.passenger.lastName}` : (b.passengerName || 'Unknown');
+                    const isCheckedIn = b.status === 'CHECKED_IN' || !!b.checkInTime;
+                    return (
+                      <tr key={b.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.9rem 1.25rem', color: 'var(--text-h)', fontWeight: 600 }}>{pName}</td>
+                        <td style={{ padding: '0.9rem 1.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.85rem' }}>
+                          {b.passenger?.passportNumber || '—'}
+                        </td>
+                        <td style={{ padding: '0.9rem 1.25rem', fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--sky-blue)' }}>
+                          ✈️ {b.flightNumber}
+                        </td>
+                        <td style={{ padding: '0.9rem 1.25rem' }}>
+                          <span style={{ fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                            {b.gate ? `Gate ${b.gate.gateNumber || b.gate.gateCode}` : 'Unassigned'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.9rem 1.25rem' }}>
+                          <span style={{ fontFamily: 'var(--font-mono)', fontWeight: 700, background: 'rgba(59, 130, 246, 0.1)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--sky-blue)' }}>
+                            {b.seatNumber || 'N/A'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.9rem 1.25rem' }}>🧳 {b.baggageCount || 0}</td>
+                        <td style={{ padding: '0.9rem 1.25rem' }}>
+                          {isCheckedIn ? (
+                            <span className="badge-status available" style={{ fontSize: '0.75rem' }}>
+                              <span className="badge-dot"></span>Checked In
+                            </span>
+                          ) : (
+                            <span className="badge-status maintenance" style={{ fontSize: '0.75rem' }}>
+                              <span className="badge-dot"></span>{b.status}
+                            </span>
+                          )}
+                        </td>
+                        <td style={{ padding: '0.9rem 1.25rem', fontFamily: 'var(--font-mono)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                          {b.checkInTime || '—'}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           ) : results.type === 'airports' ? (
             <div style={{ overflowX: 'auto' }}>
