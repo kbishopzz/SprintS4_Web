@@ -133,6 +133,13 @@ export const bookingApi = {
   getById:        (id)       => apiClient.get(`/api/bookings/${id}`),
   getByReference: (ref)      => apiClient.get(`/api/bookings/reference/${ref}`),
   getByPassenger: (id)       => apiClient.get(`/api/bookings/passenger/${id}`),
+  getManifest:    (flightNumber, gateId, status = 'CHECKED_IN') => {
+    const params = new URLSearchParams();
+    if (flightNumber) params.append('flightNumber', flightNumber);
+    if (gateId) params.append('gateId', gateId);
+    if (status) params.append('status', status);
+    return apiClient.get(`/api/bookings/manifest?${params.toString()}`);
+  },
   create:         (data)     => apiClient.post('/api/bookings', data),
   update:         (id, data) => apiClient.put(`/api/bookings/${id}`, data),
   checkIn:        (id)       => apiClient.put(`/api/bookings/${id}/checkin`),
