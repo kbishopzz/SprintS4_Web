@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { bookingApi } from '../../api/ApiClient';
+import { bookingApi, passengerApi } from '../../api/ApiClient';
 import { useAuth } from '../../context/AuthContext';
 
 export default function CheckoutPage() {
@@ -34,7 +34,26 @@ export default function CheckoutPage() {
     const lastName  = nameParts.slice(1).join(' ') || 'Traveler';
     const ref = 'BK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    // Prepare payload for creating a booking in backend
+    // 1. Create passenger record in backend MySQL database
+    let passengerId = selectedFlight?.passenger?.id || 1;
+    let passengerRecord = null;
+    try {
+      const pRes = await passengerApi.create({
+        firstName,
+        lastName,
+        email: email || `${firstName.toLowerCase()}.${lastName.toLowerCase()}@example.com`,
+        phoneNumber: '555-' + Math.floor(1000 + Math.random() * 9000),
+        passportNumber: passport || ('CAN' + Math.floor(100000 + Math.random() * 900000)),
+      });
+      if (pRes.data && pRes.data.id) {
+        passengerId = pRes.data.id;
+        passengerRecord = pRes.data;
+      }
+    } catch (pErr) {
+      console.warn('[CheckoutPage] Could not create passenger record, using fallback:', pErr);
+    }
+
+    // 2. Prepare payload for creating a booking in backend
     const bookingPayload = {
       bookingReference: ref,
       flightNumber: selectedFlight?.flightNumber || 'AC101',
@@ -43,7 +62,7 @@ export default function CheckoutPage() {
       seatNumber: '14A',
       baggageCount: 1,
       status: 'BOOKED',
-      ...(selectedFlight?.passenger?.id ? { passenger: { id: selectedFlight.passenger.id } } : { passenger: { id: 1 } }),
+      passenger: { id: passengerId },
       ...(selectedFlight?.airline?.id ? { airline: { id: selectedFlight.airline.id } } : { airline: { id: 1 } }),
       ...(selectedFlight?.originAirport?.id ? { originAirport: { id: selectedFlight.originAirport.id } } : { originAirport: { id: 1 } }),
       ...(selectedFlight?.destinationAirport?.id ? { destinationAirport: { id: selectedFlight.destinationAirport.id } } : { destinationAirport: { id: 2 } }),
@@ -57,6 +76,7 @@ export default function CheckoutPage() {
       const existing = JSON.parse(localStorage.getItem(existingKey) || '[]');
       const newEntry = {
         ...bookingPayload,
+        passenger: passengerRecord || { firstName, lastName, email, passportNumber: passport },
         airline: selectedFlight?.airline || { name: 'Air Canada' },
         originAirport: selectedFlight?.originAirport || { airportCode: 'YYT' },
         destinationAirport: selectedFlight?.destinationAirport || { airportCode: 'YYZ' },

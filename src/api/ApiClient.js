@@ -1,7 +1,7 @@
 import axios from 'axios';
 
-// Get backend API base URL from Vite environment variables or default to http://localhost:8080
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+// Get backend API base URL from Vite environment variables or default to relative path (for reverse proxy)
+const BASE_URL = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : '';
 
 // Helper to safely get item from localStorage
 const getStoredToken = () => {

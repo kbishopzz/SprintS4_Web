@@ -7,7 +7,7 @@
 const KEYCLOAK_URL    = import.meta.env.VITE_KEYCLOAK_URL    || 'http://localhost:8180';
 const REALM           = import.meta.env.VITE_KEYCLOAK_REALM  || 'airport-realm';
 const CLIENT_ID       = import.meta.env.VITE_KEYCLOAK_CLIENT_ID || 'admin-portal';
-const API_BASE_URL    = import.meta.env.VITE_API_BASE_URL    || 'http://localhost:8080';
+const API_BASE_URL    = import.meta.env.VITE_API_BASE_URL !== undefined ? import.meta.env.VITE_API_BASE_URL : '';
 
 const TOKEN_ENDPOINT = `${KEYCLOAK_URL}/realms/${REALM}/protocol/openid-connect/token`;
 
