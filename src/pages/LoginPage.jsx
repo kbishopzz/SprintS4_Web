@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { userApi } from '../api/ApiClient';
+import { userApi, passengerApi } from '../api/ApiClient';
 
 export default function LoginPage() {
   const [searchParams] = useSearchParams();
@@ -45,8 +45,10 @@ export default function LoginPage() {
       if (redirectPath) {
         navigate(redirectPath);
       } else {
-        const normUser = username.trim().toLowerCase();
-        const isAdmin = ['admin', 'mreid', 'kbishop', 'crubia'].includes(normUser);
+        const isAdmin = username.toLowerCase() === 'admin' ||
+                        username.toLowerCase() === 'mreid' ||
+                        username.toLowerCase() === 'kbishop' ||
+                        username.toLowerCase() === 'crubia';
         if (isAdmin) {
           navigate('/admin');
         } else {
@@ -68,36 +70,72 @@ export default function LoginPage() {
 
     setRegLoading(true);
 
+    const fName = regFirstName.trim() || regUsername.trim();
+    const lName = regLastName.trim() || 'Traveler';
+    const email = regEmail.trim();
+
     const payload = {
       username: regUsername.trim(),
-      email: regEmail.trim(),
-      firstName: regFirstName.trim() || regUsername.trim(),
-      lastName: regLastName.trim() || '',
+      email: email,
+      firstName: fName,
+      lastName: lName,
       passwordHash: regPassword.trim() || 'password123',
       role: 'CLIENT',
     };
 
+    let passengerId = null;
     try {
+      // 1. Create user account
       await userApi.create(payload);
-      const fullNameDisplay = regFirstName.trim() ? `${regFirstName.trim()} ${regLastName.trim()}`.trim() : regUsername.trim();
+
+      // 2. Automatically create corresponding Passenger entity in MySQL
+      try {
+        const pRes = await passengerApi.create({
+          firstName: fName,
+          lastName: lName,
+          email: email,
+          phoneNumber: '555-' + Math.floor(1000 + Math.random() * 9000),
+          passportNumber: 'CAN' + Math.floor(100000 + Math.random() * 900000),
+        });
+        if (pRes.data && pRes.data.id) {
+          passengerId = pRes.data.id;
+        }
+      } catch (pErr) {
+        console.warn('[LoginPage] Could not create matching passenger entity:', pErr);
+      }
+
+      const fullNameDisplay = `${fName} ${lName}`.trim();
       setRegSuccess(`Account successfully created for ${fullNameDisplay}! Logging you in...`);
       setTimeout(() => {
         loginDirect({
           username: payload.username,
           email: payload.email,
-          firstName: payload.firstName,
-          lastName: payload.lastName,
+          firstName: fName,
+          lastName: lName,
+          passengerId: passengerId,
           role: 'CLIENT',
         });
         navigate(redirectPath || '/');
       }, 1000);
     } catch (err) {
       console.error('[LoginPage] Register error:', err);
+      try {
+        await passengerApi.create({
+          firstName: fName,
+          lastName: lName,
+          email: email,
+          phoneNumber: '555-' + Math.floor(1000 + Math.random() * 9000),
+          passportNumber: 'CAN' + Math.floor(100000 + Math.random() * 900000),
+        });
+      } catch (pErr2) {
+        console.warn('[LoginPage] Fallback passenger registration warning:', pErr2);
+      }
       loginDirect({
         username: payload.username,
         email: payload.email,
-        firstName: payload.firstName,
-        lastName: payload.lastName,
+        firstName: fName,
+        lastName: lName,
+        passengerId: passengerId,
         role: 'CLIENT',
       });
       navigate(redirectPath || '/');

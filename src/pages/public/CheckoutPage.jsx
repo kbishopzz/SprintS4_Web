@@ -14,7 +14,11 @@ export default function CheckoutPage() {
   const defaultUser = user?.username || 'User';
   const normUser = defaultUser.toLowerCase();
 
-  const [fullName, setFullName]       = useState(user?.username || 'Passenger');
+  const userFullName = (user?.firstName && user?.lastName)
+    ? `${user.firstName} ${user.lastName}`
+    : (user?.firstName || user?.username || 'Passenger');
+
+  const [fullName, setFullName]       = useState(userFullName);
   const [email, setEmail]             = useState(user?.email || `${normUser}@example.com`);
   const [passport, setPassport]       = useState('CAN' + Math.floor(100000 + Math.random() * 900000));
   const [cardNumber, setCardNumber]   = useState('•••• •••• •••• 4242');
@@ -30,8 +34,8 @@ export default function CheckoutPage() {
     setErrorMessage('');
 
     const nameParts = fullName.trim().split(' ');
-    const firstName = nameParts[0] || defaultUser;
-    const lastName  = nameParts.slice(1).join(' ') || 'Traveler';
+    const firstName = nameParts[0] || (user?.firstName || defaultUser);
+    const lastName  = nameParts.slice(1).join(' ') || (user?.lastName || 'Traveler');
     const ref = 'BK-' + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     // 1. Create passenger record in backend MySQL database
